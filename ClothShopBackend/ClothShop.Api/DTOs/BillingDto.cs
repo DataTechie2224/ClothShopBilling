@@ -1,20 +1,22 @@
+using System.Collections.Generic;
+
 namespace ClothShop.Api.DTOs;
 
 public class CartItemDto
 {
     public int ProductId { get; set; }
-    public string Barcode { get; set; } = string.Empty;
+    public string? Barcode { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
-    public string Brand { get; set; } = string.Empty;
-    public string Category { get; set; } = string.Empty;
-    public string Size { get; set; } = string.Empty;
-    public string Color { get; set; } = string.Empty;
-    public string HsnCode { get; set; } = string.Empty;
-    public string Unit { get; set; } = "Pcs";
-    public int Quantity { get; set; }
+    public string? Brand { get; set; } = string.Empty;
+    public string? Category { get; set; } = string.Empty;
+    public string? Size { get; set; } = string.Empty;
+    public string? Color { get; set; } = string.Empty;
+    public string? HsnCode { get; set; } = "5208";
+    public string? Unit { get; set; } = "Pcs";
+    public int Quantity { get; set; } = 1;
     public decimal UnitPrice { get; set; }
-    public decimal DiscountAmount { get; set; }
-    public decimal GstRate { get; set; }
+    public decimal DiscountAmount { get; set; } = 0;
+    public decimal GstRate { get; set; } = 5;
 }
 
 public class PaymentRecordDto

@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Cloth Shop Billing, Retail & Stock Management</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- REAL SCANNABLE BARCODE ENGINE (CODE 128 / EAN-13) -->
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <script>
@@ -23,10 +25,6 @@
               600: '#9e3f14',
               800: '#461706',
               900: '#1e0902',
-            },
-            accent: {
-              600: '#4f46e5',
-              700: '#4338ca',
             }
           }
         }
@@ -35,17 +33,50 @@
   </script>
   <style>
     @media print {
-      body * { visibility: hidden; }
-      #printable-receipt, #printable-receipt * { visibility: visible; }
-      #printable-receipt { position: absolute; left: 0; top: 0; width: 100%; display: block !important; }
-      .no-print { display: none !important; }
+      body * {
+        visibility: hidden !important;
+      }
+      #print-area, #print-area * {
+        visibility: visible !important;
+      }
+      #print-area {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        display: block !important;
+        background: white !important;
+        color: black !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      @page {
+        margin: 5mm;
+      }
+    }
+    @keyframes laser {
+      0% { top: 10%; opacity: 0.8; }
+      50% { top: 85%; opacity: 1; }
+      100% { top: 10%; opacity: 0.8; }
+    }
+    .laser-line {
+      position: absolute;
+      left: 10%;
+      right: 10%;
+      height: 2px;
+      background: #ef4444;
+      box-shadow: 0 0 10px #ef4444;
+      animation: laser 2s infinite ease-in-out;
     }
   </style>
 </head>
 <body class="bg-stone-100 text-stone-800 antialiased font-sans flex flex-col h-screen overflow-hidden">
 
   <!-- TOP HEADER -->
-  <header class="bg-brand-900 text-white px-5 py-2.5 flex items-center justify-between shadow-md shrink-0 border-b border-brand-800">
+  <header class="bg-brand-900 text-white px-5 py-2.5 flex items-center justify-between shadow-md shrink-0 border-b border-brand-800 no-print">
     <div class="flex items-center gap-3">
       <div class="w-9 h-9 rounded-xl bg-brand-500/20 border border-brand-500/40 flex items-center justify-center font-bold text-amber-400 text-lg shadow-inner">
         👔
@@ -71,7 +102,7 @@
   </header>
 
   <!-- MAIN APP CONTAINER -->
-  <div class="flex-1 flex overflow-hidden">
+  <div class="flex-1 flex overflow-hidden no-print">
     
     <!-- LEFT SIDEBAR -->
     <aside class="w-64 bg-stone-900 text-stone-300 flex flex-col justify-between shrink-0 border-r border-stone-800">
@@ -85,7 +116,6 @@
         </button>
         <button onclick="switchTab('stock')" id="tab-btn-stock" class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium hover:bg-stone-800 transition">
           <div class="flex items-center gap-3"><span>📦</span> Inventory & Stock</div>
-          <span id="badge-lowstock" class="text-[10px] font-mono bg-rose-900/80 text-rose-300 px-1.5 py-0.5 rounded-full hidden">0</span>
         </button>
         <button onclick="switchTab('sales')" id="tab-btn-sales" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium hover:bg-stone-800 transition">
           <span>🧾</span> Sales Register
@@ -96,8 +126,6 @@
         <button onclick="switchTab('returns')" id="tab-btn-returns" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium hover:bg-stone-800 transition">
           <span>🔄</span> Returns & Exchanges
         </button>
-
-        <div class="text-[10px] font-bold uppercase tracking-wider text-stone-500 px-3 pt-3 pb-1">Accounts & Operations</div>
         <button onclick="switchTab('customers')" id="tab-btn-customers" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium hover:bg-stone-800 transition">
           <span>👥</span> Customer Khata & Balances
         </button>
@@ -114,7 +142,6 @@
           <span>📊</span> Reports & P&L
         </button>
       </nav>
-
       <div class="p-3 border-t border-stone-800 text-center text-[10px] text-stone-500 font-mono">
         v2.4.0-Enterprise | DotNet 10.0
       </div>
@@ -123,25 +150,50 @@
     <!-- RIGHT MAIN CONTENT -->
     <main class="flex-1 flex flex-col bg-stone-100 overflow-hidden">
       
-      <!-- 1. POS BILLING -->
+      <!-- ============================================================== -->
+      <!-- 1. MODULE: POS BILLING                                         -->
+      <!-- ============================================================== -->
       <section id="module-pos" class="flex-1 flex overflow-hidden">
+        
+        <!-- Left Side: Search & Garment Grid -->
         <div class="w-7/12 flex flex-col border-r border-stone-300 bg-white">
+          
+          <!-- Barcode Search Bar with Camera Scanner Button -->
           <div class="p-3 border-b border-stone-200 bg-stone-50 flex items-center gap-2">
             <div class="relative flex-1">
               <input 
                 type="text" 
                 id="pos-barcode-input" 
-                placeholder="Scan barcode or press Alt+B..." 
+                placeholder="Scan barcode or press Alt+B (e.g. 890100100001)..." 
                 class="w-full pl-9 pr-3 py-2 bg-white border border-stone-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-brand-500 focus:outline-none"
                 onkeydown="if(event.key === 'Enter') handlePosBarcodeScan()"
               />
               <span class="absolute left-3 top-2.5 text-stone-400 text-xs">🔍</span>
             </div>
-            <button onclick="handlePosBarcodeScan()" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-xs font-bold transition">
+
+            <!-- CAMERA BARCODE SCANNER BUTTON -->
+            <button 
+              onclick="openCameraScannerModal()" 
+              title="Scan with Camera / Webcam (F9)"
+              class="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-xl transition flex items-center gap-1.5 text-xs font-semibold"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span class="hidden sm:inline">Camera</span>
+            </button>
+
+            <!-- ADD ITEM BUTTON -->
+            <button 
+              onclick="handlePosBarcodeScan()" 
+              class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-xs font-bold transition shadow-sm"
+            >
               Add Item
             </button>
           </div>
 
+          <!-- Categories Quick Filter -->
           <div class="px-3 py-2 border-b border-stone-200 flex gap-2 overflow-x-auto text-[11px] font-semibold text-stone-600 bg-white shrink-0">
             <button onclick="renderPosProducts('ALL')" class="px-2.5 py-1 rounded-lg bg-brand-500 text-white">All</button>
             <button onclick="renderPosProducts('Ethnic Wear')" class="px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200">Ethnic Silk</button>
@@ -151,9 +203,11 @@
             <button onclick="renderPosProducts('Fabrics & Material')" class="px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200">Fabrics</button>
           </div>
 
+          <!-- Garment Grid -->
           <div id="pos-product-grid" class="flex-1 overflow-y-auto p-3 grid grid-cols-2 xl:grid-cols-3 gap-3 content-start"></div>
         </div>
 
+        <!-- Right Side: POS Billing Cart Register -->
         <div class="w-5/12 flex flex-col bg-stone-50">
           <div class="p-3 border-b border-stone-200 bg-white flex items-center justify-between gap-2 text-xs">
             <div class="flex-1">
@@ -172,6 +226,7 @@
             </div>
           </div>
 
+          <!-- Cart items list -->
           <div class="flex-1 overflow-y-auto p-2">
             <table class="w-full text-xs">
               <thead class="text-[10px] uppercase text-stone-400 border-b border-stone-200 font-bold">
@@ -187,6 +242,7 @@
             </table>
           </div>
 
+          <!-- Billing Totals -->
           <div class="border-t border-stone-300 bg-white p-3 space-y-1.5 text-xs">
             <div class="flex justify-between text-stone-500">
               <span>Subtotal</span>
@@ -201,6 +257,7 @@
               <span id="pos-grandtotal" class="font-mono text-brand-600 text-lg">₹0.00</span>
             </div>
 
+            <!-- Payment mode selection -->
             <div class="grid grid-cols-4 gap-1.5 pt-1">
               <button onclick="setPosPayment('CASH')" id="pos-btn-cash" class="py-1.5 border border-brand-500 bg-brand-50 text-brand-600 rounded font-bold text-xs">Cash</button>
               <button onclick="setPosPayment('UPI')" id="pos-btn-upi" class="py-1.5 border border-stone-300 bg-white rounded font-bold text-xs">UPI</button>
@@ -208,25 +265,89 @@
               <button onclick="setPosPayment('CREDIT')" id="pos-btn-credit" class="py-1.5 border border-stone-300 bg-white rounded font-bold text-xs">Khata</button>
             </div>
 
-            <button onclick="processPosCheckout()" class="w-full mt-1.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow transition">
-              Complete Sale & Print Receipt
+            <!-- Complete sale button -->
+            <button 
+              id="btn-complete-sale"
+              onclick="processPosCheckout()" 
+              class="w-full mt-1.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow transition flex items-center justify-center gap-1.5"
+            >
+              <span>Complete Sale & Print Receipt</span>
             </button>
           </div>
         </div>
       </section>
 
-      <!-- 2. CLOTHING CATALOG SCREEN -->
-      <section id="module-products" class="flex-1 flex-col p-5 overflow-y-auto hidden">
-        <div class="flex justify-between items-center mb-4">
+      <!-- ============================================================== -->
+      <!-- 2. CLOTHING CATALOG SCREEN                                     -->
+      <!-- ============================================================== -->
+      <section id="module-products" class="flex-1 flex-col p-5 overflow-y-auto hidden space-y-4">
+        
+        <!-- Header Bar -->
+        <div class="flex flex-wrap justify-between items-center gap-3">
           <div>
-            <h2 class="text-lg font-bold text-stone-900">Clothing Catalog & SKU Master</h2>
+            <h2 class="text-lg font-bold text-stone-900 flex items-center gap-2">
+              <span>Clothing Catalog & SKU Master</span>
+              <span id="catalog-counter-badge" class="text-xs bg-stone-200 text-stone-700 font-mono px-2 py-0.5 rounded-full font-bold"></span>
+            </h2>
             <p class="text-xs text-stone-500">Manage apparel styles, sizes, fabrics, prices and barcodes.</p>
           </div>
-          <button onclick="openAddProductModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow flex items-center gap-1.5">
-            <span class="text-base leading-none">+</span> Add Clothing Item
-          </button>
+          
+          <div class="flex items-center gap-2">
+            <!-- EXPORT CSV -->
+            <button onclick="exportCatalogToCsv()" class="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 border border-stone-200">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              <span>Export CSV</span>
+            </button>
+
+            <!-- ADD CLOTHING ITEM BUTTON -->
+            <button 
+              type="button" 
+              onclick="openAddProductModal()" 
+              class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow flex items-center gap-1.5 transition"
+            >
+              <span class="text-base leading-none">+</span> Add Clothing Item
+            </button>
+          </div>
         </div>
 
+        <!-- SEARCH & FILTER TOOLBAR -->
+        <div class="bg-white rounded-xl p-3 border border-stone-200 shadow-xs flex flex-wrap items-center gap-3">
+          <div class="relative flex-1 min-w-[220px]">
+            <span class="absolute left-3 top-2.5 text-stone-400 text-xs">🔍</span>
+            <input 
+              type="text" 
+              id="catalog-search" 
+              oninput="filterCatalogTable()" 
+              placeholder="Search garments by name, barcode, SKU, brand, color, HSN..." 
+              class="w-full pl-8 pr-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            />
+          </div>
+          
+          <select id="catalog-filter-cat" onchange="filterCatalogTable()" class="px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs font-semibold text-stone-700 focus:outline-none">
+            <option value="ALL">All Categories</option>
+            <option value="Men">Men</option>
+            <option value="Women">Women</option>
+            <option value="Kids">Kids</option>
+            <option value="Ethnic Wear">Ethnic Wear</option>
+            <option value="Casual Wear">Casual Wear</option>
+            <option value="Formal Wear">Formal Wear</option>
+            <option value="Fabrics & Material">Fabrics & Material</option>
+            <option value="Accessories">Accessories</option>
+          </select>
+
+          <select id="catalog-filter-fabric" onchange="filterCatalogTable()" class="px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs font-semibold text-stone-700 focus:outline-none">
+            <option value="ALL">All Fabrics</option>
+            <option value="100% Cotton">100% Cotton</option>
+            <option value="Pure Silk">Pure Silk</option>
+            <option value="Linen">Linen</option>
+            <option value="Denim">Denim</option>
+            <option value="Rayon">Rayon</option>
+            <option value="Polyester">Polyester</option>
+            <option value="Cotton/Silk">Cotton/Silk</option>
+          </select>
+        </div>
+
+        <!-- Table View -->
         <div class="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-sm">
           <table class="w-full text-left text-xs">
             <thead class="bg-stone-50 border-b border-stone-200 text-stone-500 font-bold uppercase text-[10px]">
@@ -236,10 +357,10 @@
                 <th class="p-3">Category & Fabric</th>
                 <th class="p-3">Size & Color</th>
                 <th class="p-3 text-right">Cost Price</th>
-                <th class="p-3 text-right">Selling Price (MRP)</th>
-                <th class="p-3 text-center">Stock Level</th>
+                <th class="p-3 text-right">Selling MRP</th>
+                <th class="p-3 text-center">Stock</th>
                 <th class="p-3">Location</th>
-                <th class="p-3 text-center">Actions</th>
+                <th class="p-3 pr-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody id="catalog-tbody" class="divide-y divide-stone-100"></tbody>
@@ -247,35 +368,9 @@
         </div>
       </section>
 
-      <!-- 3. INVENTORY & STOCK -->
-      <section id="module-stock" class="flex-1 flex-col p-5 overflow-y-auto hidden">
-        <div class="flex justify-between items-center mb-4">
-          <div>
-            <h2 class="text-lg font-bold text-stone-900">Live Inventory & Stock Audits</h2>
-            <p class="text-xs text-stone-500">Monitor stock levels, track low stock alerts, and adjust quantities.</p>
-          </div>
-          <button onclick="loadStockView()" class="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-bold rounded-lg">Refresh Stock</button>
-        </div>
-        <div class="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-sm">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-stone-50 border-b border-stone-200 text-stone-500 font-bold uppercase text-[10px]">
-              <tr>
-                <th class="p-3">Product Name</th>
-                <th class="p-3">Barcode</th>
-                <th class="p-3">Location</th>
-                <th class="p-3 text-center">Current Qty</th>
-                <th class="p-3 text-center">Alert Limit</th>
-                <th class="p-3 text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody id="stock-tbody" class="divide-y divide-stone-100"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- 4. SALES REGISTER -->
+      <!-- 3. SALES REGISTER -->
       <section id="module-sales" class="flex-1 flex-col p-5 overflow-y-auto hidden">
-        <h2 class="text-lg font-bold text-stone-900 mb-4">Sales Invoices History</h2>
+        <h2 class="text-lg font-bold text-stone-900 mb-4">Sales Register & Invoices</h2>
         <div class="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-sm">
           <table class="w-full text-left text-xs">
             <thead class="bg-stone-50 border-b border-stone-200 text-stone-500 font-bold uppercase text-[10px]">
@@ -283,8 +378,8 @@
                 <th class="p-3">Invoice No</th>
                 <th class="p-3">Date</th>
                 <th class="p-3">Customer</th>
-                <th class="p-3 text-right">Grand Total</th>
-                <th class="p-3 text-center">Status</th>
+                <th class="p-3 text-right">Total</th>
+                <th class="p-3 text-center">Print</th>
               </tr>
             </thead>
             <tbody id="sales-tbody" class="divide-y divide-stone-100"></tbody>
@@ -292,100 +387,33 @@
         </div>
       </section>
 
-      <!-- 5. PURCHASES -->
-      <section id="module-purchases" class="flex-1 flex-col p-5 overflow-y-auto hidden">
-        <h2 class="text-lg font-bold text-stone-900 mb-4">Purchases & Inward Goods</h2>
-        <div class="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-sm">
-          <table class="w-full text-left text-xs">
-            <tbody id="purchases-tbody" class="divide-y divide-stone-100"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- 6. RETURNS -->
-      <section id="module-returns" class="flex-1 flex-col p-5 overflow-y-auto hidden">
-        <h2 class="text-lg font-bold text-stone-900 mb-4">Returns & Exchanges</h2>
-        <div class="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-sm">
-          <table class="w-full text-left text-xs">
-            <tbody id="returns-tbody" class="divide-y divide-stone-100"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- 7. CUSTOMERS -->
-      <section id="module-customers" class="flex-1 flex-col p-5 overflow-y-auto hidden">
-        <h2 class="text-lg font-bold text-stone-900 mb-4">Customer Balances & Khata</h2>
-        <div class="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-sm">
-          <table class="w-full text-left text-xs">
-            <tbody id="customers-tbody" class="divide-y divide-stone-100"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- 8. SUPPLIERS -->
-      <section id="module-suppliers" class="flex-1 flex-col p-5 overflow-y-auto hidden">
-        <h2 class="text-lg font-bold text-stone-900 mb-4">Suppliers & Mills Directory</h2>
-        <div class="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-sm">
-          <table class="w-full text-left text-xs">
-            <tbody id="suppliers-tbody" class="divide-y divide-stone-100"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- 9. EXPENSES -->
-      <section id="module-expenses" class="flex-1 flex-col p-5 overflow-y-auto hidden">
-        <h2 class="text-lg font-bold text-stone-900 mb-4">Store Expenses</h2>
-        <div class="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-sm">
-          <table class="w-full text-left text-xs">
-            <tbody id="expenses-tbody" class="divide-y divide-stone-100"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- 10. DISCOUNTS -->
-      <section id="module-discounts" class="flex-1 flex-col p-5 overflow-y-auto hidden">
-        <h2 class="text-lg font-bold text-stone-900 mb-4">Promotions & Coupons</h2>
-        <div class="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-sm">
-          <table class="w-full text-left text-xs">
-            <tbody id="discounts-tbody" class="divide-y divide-stone-100"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- 11. REPORTS -->
-      <section id="module-reports" class="flex-1 flex-col p-5 overflow-y-auto hidden">
-        <h2 class="text-lg font-bold text-stone-900 mb-4">Financial Reports & P&L</h2>
-        <div class="grid grid-cols-4 gap-4">
-          <div class="bg-white p-4 rounded-xl border border-stone-200">
-            <span class="text-[10px] uppercase font-bold text-stone-400">Today Sales</span>
-            <div id="rep-today-sales" class="text-2xl font-bold font-mono text-stone-900 mt-1">₹0.00</div>
-          </div>
-        </div>
-      </section>
-
+      <!-- OTHER SECTIONS FALLBACK -->
+      <section id="module-stock" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Stock Live Inventory</h2></section>
+      <section id="module-purchases" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Purchases & Inward</h2></section>
+      <section id="module-returns" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Returns & Exchanges</h2></section>
+      <section id="module-customers" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Customer Khata</h2></section>
+      <section id="module-suppliers" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Suppliers Directory</h2></section>
+      <section id="module-expenses" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Store Expenses</h2></section>
+      <section id="module-discounts" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Offers & Coupons</h2></section>
+      <section id="module-reports" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Reports & P&L</h2></section>
     </main>
   </div>
 
   <!-- ============================================================== -->
-  <!-- MODAL: ADD / EDIT CLOTHING ITEM (MATCHING SCREENSHOT EXACTLY) -->
+  <!-- MODAL: ADD / EDIT CLOTHING ITEM                                -->
   <!-- ============================================================== -->
-  <div id="product-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden border border-stone-200 flex flex-col max-h-[92vh]">
+  <div id="product-modal" class="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden no-print">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-stone-300 overflow-hidden flex flex-col max-h-[92vh]">
       
       <!-- Modal Header -->
-      <div class="px-6 py-4 border-b border-stone-200 flex items-center justify-between bg-stone-50/50">
-        <div class="flex items-center gap-2.5">
-          <div class="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-          </div>
-          <h3 id="modal-title" class="text-base font-bold text-stone-900">Add New Textile / Apparel Product</h3>
-        </div>
-        <button onclick="closeProductModal()" class="text-stone-400 hover:text-stone-600 text-xl font-bold p-1">&times;</button>
+      <div class="px-6 py-3.5 border-b border-stone-200 flex items-center justify-between bg-stone-50">
+        <h3 id="modal-product-title" class="text-base font-bold text-stone-900 flex items-center gap-2">
+          <span>👗</span> Add New Textile / Apparel Product
+        </h3>
+        <button type="button" onclick="closeProductModal()" class="text-stone-400 hover:text-stone-600 text-2xl font-bold p-1 leading-none">&times;</button>
       </div>
 
-      <!-- Modal Form Body -->
+      <!-- Form Body -->
       <form id="product-form" onsubmit="handleProductFormSubmit(event)" class="p-6 overflow-y-auto space-y-4 text-xs">
         <input type="hidden" id="form-product-id" value="0" />
 
@@ -398,270 +426,376 @@
                 Generate New
               </button>
             </div>
-            <input 
-              type="text" 
-              id="form-barcode" 
-              required 
-              placeholder="e.g. 890811932106" 
-              class="w-full px-3 py-2 border border-stone-300 rounded-lg font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none" 
-            />
+            <input type="text" id="form-barcode" required placeholder="e.g. 890811932106" class="w-full px-3 py-2 border border-stone-300 rounded-xl font-mono text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
           </div>
           <div>
             <label class="block font-bold text-stone-700 mb-1">SKU / Item Code</label>
-            <input 
-              type="text" 
-              id="form-sku" 
-              placeholder="e.g. SKU-3401" 
-              class="w-full px-3 py-2 border border-stone-300 rounded-lg font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none" 
-            />
+            <input type="text" id="form-sku" placeholder="e.g. SKU-3401" class="w-full px-3 py-2 border border-stone-300 rounded-xl font-mono text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
           </div>
         </div>
 
         <!-- Row 2: Garment Name -->
         <div>
           <label class="block font-bold text-stone-700 mb-1">Garment / Item Name *</label>
-          <input 
-            type="text" 
-            id="form-name" 
-            required 
-            placeholder="e.g. Pure Linen Casual Shirt - Sky Blue" 
-            class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none" 
-          />
+          <input type="text" id="form-name" required placeholder="e.g. Pure Linen Casual Shirt - Sky Blue" class="w-full px-3 py-2 border border-stone-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
         </div>
 
         <!-- Row 3: Brand, Category, Fabric -->
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-3 gap-3">
           <div>
             <label class="block font-bold text-stone-700 mb-1">Brand / Label *</label>
-            <input 
-              type="text" 
-              id="form-brand" 
-              required 
-              placeholder="e.g. Raymond, Manyavar, Zara" 
-              class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none" 
-            />
+            <input type="text" id="form-brand" required placeholder="e.g. Raymond, Manyavar, Zara" class="w-full px-3 py-2 border border-stone-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
           </div>
           <div>
             <label class="block font-bold text-stone-700 mb-1">Category *</label>
-            <select id="form-category" required class="w-full px-3 py-2 border border-stone-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <select id="form-category" required class="w-full px-3 py-2 border border-stone-300 rounded-xl bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
               <option value="Men">Men</option>
               <option value="Women">Women</option>
               <option value="Kids">Kids</option>
               <option value="Ethnic Wear">Ethnic Wear</option>
-              <option value="Formal Wear">Formal Wear</option>
               <option value="Casual Wear">Casual Wear</option>
+              <option value="Formal Wear">Formal Wear</option>
               <option value="Fabrics & Material">Fabrics & Material</option>
               <option value="Accessories">Accessories</option>
             </select>
           </div>
           <div>
             <label class="block font-bold text-stone-700 mb-1">Fabric Type *</label>
-            <select id="form-fabric" required class="w-full px-3 py-2 border border-stone-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <select id="form-fabric" required class="w-full px-3 py-2 border border-stone-300 rounded-xl bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
               <option value="100% Cotton">100% Cotton</option>
               <option value="Pure Silk">Pure Silk</option>
               <option value="Linen">Linen</option>
               <option value="Denim">Denim</option>
               <option value="Rayon">Rayon</option>
-              <option value="Poly-Cotton">Poly-Cotton</option>
-              <option value="Georgette / Chiffon">Georgette / Chiffon</option>
-              <option value="Woolen / Knit">Woolen / Knit</option>
+              <option value="Polyester">Polyester</option>
+              <option value="Cotton/Silk">Cotton/Silk</option>
             </select>
           </div>
         </div>
 
         <!-- Row 4: Size, Color, Selling Unit -->
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-3 gap-3">
           <div>
             <label class="block font-bold text-stone-700 mb-1">Size *</label>
-            <select id="form-size" required class="w-full px-3 py-2 border border-stone-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <select id="form-size" required class="w-full px-3 py-2 border border-stone-300 rounded-xl bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
               <option value="XS">XS</option>
               <option value="S">S</option>
               <option value="M" selected>M</option>
               <option value="L">L</option>
               <option value="XL">XL</option>
               <option value="XXL">XXL</option>
+              <option value="28">28</option>
+              <option value="30">30</option>
               <option value="32">32</option>
               <option value="34">34</option>
               <option value="36">36</option>
               <option value="38">38</option>
               <option value="40">40</option>
               <option value="Free Size">Free Size</option>
-              <option value="Meter (Mtr)">Meter (Mtr)</option>
+              <option value="Mtr">Mtr</option>
             </select>
           </div>
           <div>
             <label class="block font-bold text-stone-700 mb-1">Color / Shade *</label>
-            <input 
-              type="text" 
-              id="form-color" 
-              required 
-              placeholder="e.g. Navy Blue, Maroon, Gold" 
-              class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none" 
-            />
+            <input type="text" id="form-color" required placeholder="e.g. Navy Blue, Maroon" class="w-full px-3 py-2 border border-stone-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
           </div>
           <div>
             <label class="block font-bold text-stone-700 mb-1">Selling Unit *</label>
-            <select id="form-unit" required class="w-full px-3 py-2 border border-stone-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-              <option value="Pcs (Garments)">Pcs (Garments)</option>
-              <option value="Mtr (Fabrics)">Mtr (Fabrics)</option>
-              <option value="Set (Kurta / Suit)">Set (Kurta / Suit)</option>
-              <option value="Pair (Socks/Gloves)">Pair (Socks/Gloves)</option>
+            <select id="form-unit" required class="w-full px-3 py-2 border border-stone-300 rounded-xl bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              <option value="Pcs">Pcs</option>
+              <option value="Mtr">Mtr</option>
+              <option value="Set">Set</option>
+              <option value="Pair">Pair</option>
             </select>
           </div>
         </div>
 
-        <!-- Row 5: HSN Code & GST Rate -->
+        <!-- Row 5: HSN & GST -->
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block font-bold text-stone-700 mb-1">HSN Code *</label>
-            <input 
-              type="text" 
-              id="form-hsn" 
-              required 
-              value="6205" 
-              class="w-full px-3 py-2 border border-stone-300 rounded-lg font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none" 
-            />
-            <!-- Quick Pick HSN Pills -->
-            <div class="flex gap-1.5 mt-1.5 text-[10px]">
-              <button type="button" onclick="setHsn('6205')" class="px-2 py-0.5 bg-stone-100 hover:bg-stone-200 rounded font-mono text-stone-600">6205</button>
-              <button type="button" onclick="setHsn('6109')" class="px-2 py-0.5 bg-stone-100 hover:bg-stone-200 rounded font-mono text-stone-600">6109</button>
-              <button type="button" onclick="setHsn('6203')" class="px-2 py-0.5 bg-stone-100 hover:bg-stone-200 rounded font-mono text-stone-600">6203</button>
-              <button type="button" onclick="setHsn('6204')" class="px-2 py-0.5 bg-stone-100 hover:bg-stone-200 rounded font-mono text-stone-600">6204</button>
-              <button type="button" onclick="setHsn('5007')" class="px-2 py-0.5 bg-stone-100 hover:bg-stone-200 rounded font-mono text-stone-600">5007</button>
+            <input type="text" id="form-hsn" required value="6205" class="w-full px-3 py-2 border border-stone-300 rounded-xl font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
+            <div class="flex gap-1.5 mt-1 text-[10px]">
+              <button type="button" onclick="setHsn('6205')" class="px-2 py-0.5 bg-stone-100 hover:bg-stone-200 rounded font-mono">6205</button>
+              <button type="button" onclick="setHsn('6109')" class="px-2 py-0.5 bg-stone-100 hover:bg-stone-200 rounded font-mono">6109</button>
+              <button type="button" onclick="setHsn('6203')" class="px-2 py-0.5 bg-stone-100 hover:bg-stone-200 rounded font-mono">6203</button>
+              <button type="button" onclick="setHsn('5007')" class="px-2 py-0.5 bg-stone-100 hover:bg-stone-200 rounded font-mono">5007</button>
             </div>
           </div>
           <div>
             <label class="block font-bold text-stone-700 mb-1">GST Rate (%) *</label>
-            <select id="form-gst" required class="w-full px-3 py-2 border border-stone-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-              <option value="5">5% (Standard Apparel &lt;= 1000 / Cotton/Silk)</option>
+            <select id="form-gst" required class="w-full px-3 py-2 border border-stone-300 rounded-xl bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              <option value="5">5% (Apparel &lt;= 1000 / Cotton/Silk)</option>
               <option value="12">12% (Apparel &gt; 1000 / Synthetic)</option>
               <option value="18">18% (Accessories / Luxury)</option>
-              <option value="0">0% (Khadi / Raw Unstitched)</option>
+              <option value="0">0% (Khadi / Raw)</option>
             </select>
           </div>
         </div>
 
-        <!-- Row 6: Pricing & Inventory Numbers -->
+        <!-- Row 6: Prices & Stock -->
         <div class="grid grid-cols-4 gap-3">
           <div>
             <label class="block font-bold text-stone-700 mb-1">Cost Price (₹)</label>
-            <input 
-              type="number" 
-              step="0.01" 
-              id="form-cost" 
-              required 
-              value="600" 
-              class="w-full px-3 py-2 border border-stone-300 rounded-lg font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none" 
-            />
+            <input type="number" step="0.01" id="form-cost" required value="600" class="w-full px-3 py-2 border border-stone-300 rounded-xl font-mono" />
           </div>
           <div>
-            <label class="block font-bold text-stone-700 mb-1">Selling Price (MRP) *</label>
-            <input 
-              type="number" 
-              step="0.01" 
-              id="form-mrp" 
-              required 
-              value="1299" 
-              class="w-full px-3 py-2 border border-stone-300 rounded-lg font-mono font-bold text-stone-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none" 
-            />
+            <label class="block font-bold text-stone-700 mb-1">Selling MRP (₹) *</label>
+            <input type="number" step="0.01" id="form-mrp" required value="1299" class="w-full px-3 py-2 border border-stone-300 rounded-xl font-mono font-bold text-stone-900" />
           </div>
           <div>
             <label class="block font-bold text-stone-700 mb-1">Opening Stock</label>
-            <input 
-              type="number" 
-              id="form-stock" 
-              required 
-              value="12" 
-              class="w-full px-3 py-2 border border-stone-300 rounded-lg font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none" 
-            />
+            <input type="number" id="form-stock" required value="10" class="w-full px-3 py-2 border border-stone-300 rounded-xl font-mono" />
           </div>
           <div>
-            <label class="block font-bold text-stone-700 mb-1">Low Stock Alert At</label>
-            <input 
-              type="number" 
-              id="form-alert" 
-              required 
-              value="4" 
-              class="w-full px-3 py-2 border border-stone-300 rounded-lg font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none" 
-            />
+            <label class="block font-bold text-stone-700 mb-1">Alert Level</label>
+            <input type="number" id="form-alert" required value="3" class="w-full px-3 py-2 border border-stone-300 rounded-xl font-mono" />
           </div>
         </div>
 
-        <!-- Row 7: Shelf / Rack Location -->
+        <!-- Row 7: Rack Location -->
         <div>
           <label class="block font-bold text-stone-700 mb-1">Rack / Shelf / Counter Location</label>
-          <input 
-            type="text" 
-            id="form-rack" 
-            value="Rack A-1" 
-            placeholder="e.g. Rack A-1, Counter 2, 1st Floor Silk Section" 
-            class="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none" 
-          />
+          <input type="text" id="form-rack" value="Rack A-1" class="w-full px-3 py-2 border border-stone-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
         </div>
 
-        <!-- Action Footer -->
+        <!-- Submit Footer -->
         <div class="pt-4 border-t border-stone-200 flex justify-end gap-2.5">
-          <button 
-            type="button" 
-            onclick="closeProductModal()" 
-            class="px-5 py-2 border border-stone-300 rounded-xl text-stone-700 hover:bg-stone-50 font-semibold transition"
-          >
-            Cancel
-          </button>
-          <button 
-            type="submit" 
-            class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md transition"
-          >
-            Save Product
-          </button>
+          <button type="button" onclick="closeProductModal()" class="px-5 py-2 border border-stone-300 rounded-xl text-stone-700 hover:bg-stone-50 font-semibold transition">Cancel</button>
+          <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md transition">Save Product</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- PRINTABLE RECEIPT CONTAINER -->
-  <div id="printable-receipt" class="hidden font-mono text-[11px] p-4 bg-white max-w-[320px] mx-auto text-black leading-tight">
-    <div class="text-center pb-2 border-b border-black">
-      <h2 class="font-bold text-sm">ROYAL SILK & TEXTILES</h2>
-      <p>42 Gandhi Road, Chennai - 600001</p>
-      <p>GSTIN: 33AAAAA0000A1Z5</p>
-      <p class="font-bold mt-1 text-xs">TAX INVOICE</p>
-    </div>
-    <div class="py-2 border-b border-black">
-      <p>Inv: <span id="pr-inv-no"></span></p>
-      <p>Date: <span id="pr-date"></span></p>
-      <p>Customer: <span id="pr-cust"></span></p>
-    </div>
-    <table class="w-full my-2">
-      <thead>
-        <tr class="border-b border-black">
-          <th class="text-left">Item</th>
-          <th class="text-center">Qty</th>
-          <th class="text-right">Total</th>
-        </tr>
-      </thead>
-      <tbody id="pr-tbody"></tbody>
-    </table>
-    <div class="border-t border-black pt-1 space-y-0.5">
-      <div class="flex justify-between"><span>Subtotal:</span><span id="pr-sub"></span></div>
-      <div class="flex justify-between"><span>GST Tax:</span><span id="pr-tax"></span></div>
-      <div class="flex justify-between font-bold text-xs"><span>Grand Total:</span><span id="pr-grand"></span></div>
-      <div class="flex justify-between"><span>Payment Mode:</span><span id="pr-mode"></span></div>
+  <!-- ============================================================== -->
+  <!-- MODAL: PRINT BARCODE PRICE TAGS (WITH REAL CODE-128 & SKU)     -->
+  <!-- ============================================================== -->
+  <div id="barcode-tags-modal" class="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden no-print">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-stone-300 overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="p-4 bg-stone-900 text-white flex items-center justify-between">
+        <div>
+          <h3 class="font-bold text-sm">Print Barcode Price Tags</h3>
+          <p id="tag-modal-item-name" class="text-xs text-stone-400 font-mono"></p>
+        </div>
+        <button onclick="closeBarcodeTagsModal()" class="text-stone-400 hover:text-white text-2xl font-bold">&times;</button>
+      </div>
+      <div class="p-4 border-b border-stone-200 flex items-center justify-between bg-stone-50 text-xs">
+        <div class="flex items-center gap-2">
+          <label class="font-bold">Quantity of Tags:</label>
+          <select id="tag-sheet-count" onchange="renderBarcodeTagsSheet()" class="px-3 py-1 border rounded-lg bg-white">
+            <option value="4">4 Tags</option>
+            <option value="8">8 Tags</option>
+            <option value="12" selected>12 Tags (Full Sheet)</option>
+            <option value="24">24 Tags</option>
+          </select>
+        </div>
+        <button onclick="printBarcodeSheet()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold shadow">
+          Print Tags Sheet
+        </button>
+      </div>
+      <div class="p-6 overflow-y-auto flex-1 bg-stone-200">
+        <div id="tag-sheet-preview" class="grid grid-cols-2 gap-3 max-w-md mx-auto"></div>
+      </div>
     </div>
   </div>
 
-  <!-- COMPLETE CLIENT SCRIPT -->
+  <!-- ============================================================== -->
+  <!-- MODAL 1: CAMERA BARCODE SCANNER MODAL                          -->
+  <!-- ============================================================== -->
+  <div id="camera-scanner-modal" class="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden no-print">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-stone-300">
+      <div class="p-4 bg-stone-900 text-white flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+          </svg>
+          <h3 class="font-bold text-sm">Scan Garment Barcode / QR</h3>
+        </div>
+        <button onclick="closeCameraScannerModal()" class="text-stone-400 hover:text-white text-xl font-bold">&times;</button>
+      </div>
+
+      <div class="p-4 flex flex-col items-center">
+        <!-- Live Video Frame -->
+        <div class="relative w-full aspect-square bg-black rounded-xl overflow-hidden flex items-center justify-center shadow-inner">
+          <video id="scanner-video" class="w-full h-full object-cover" playsinline autoplay muted></video>
+          <div class="laser-line"></div>
+          <div class="absolute inset-8 border-2 border-white/40 rounded-lg pointer-events-none"></div>
+          <div id="scanner-status" class="absolute bottom-3 px-3 py-1 bg-black/60 backdrop-blur-xs text-white text-[10px] rounded-full font-mono">
+            Aim camera at garment barcode tag
+          </div>
+        </div>
+
+        <!-- Manual input fallback -->
+        <div class="w-full mt-4">
+          <label class="block text-[11px] font-bold text-stone-600 mb-1">Or type barcode / SKU manually:</label>
+          <div class="flex gap-2">
+            <input 
+              type="text" 
+              id="manual-scanner-code" 
+              placeholder="e.g. 890100100001" 
+              class="flex-1 px-3 py-2 border border-stone-300 rounded-lg font-mono text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              onkeydown="if(event.key === 'Enter') handleManualScannerSubmit()"
+            />
+            <button 
+              onclick="handleManualScannerSubmit()" 
+              class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition shadow-sm"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- MODAL 2: INVOICE PRINT MODAL (THERMAL & A4)                   -->
+  <!-- ============================================================== -->
+  <div id="invoice-print-modal" class="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden no-print">
+    <div class="bg-slate-100 rounded-2xl shadow-2xl max-w-3xl w-full my-4 overflow-hidden border border-slate-300 flex flex-col max-h-[90vh]">
+      
+      <!-- Modal Header -->
+      <div class="p-4 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div>
+          <h3 class="font-bold text-sm leading-tight">Tax Invoice & Cash Receipt</h3>
+          <p id="modal-inv-subtitle" class="text-xs text-slate-400 font-mono">Invoice #INV-2026</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <!-- Format toggle -->
+          <div class="bg-slate-800 p-1 rounded-xl flex items-center text-xs font-medium border border-slate-700">
+            <button id="btn-fmt-thermal" onclick="setPrintFormat('thermal')" class="px-3 py-1.5 rounded-lg bg-brand-500 text-white">80mm Thermal</button>
+            <button id="btn-fmt-a4" onclick="setPrintFormat('a4')" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-white">A4 Invoice</button>
+          </div>
+
+          <!-- PRINT NOW BUTTON -->
+          <button 
+            onclick="triggerNativePrint()" 
+            class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Print Now
+          </button>
+
+          <button onclick="closeInvoicePrintModal()" class="text-slate-400 hover:text-white text-xl font-bold p-1">&times;</button>
+        </div>
+      </div>
+
+      <!-- Preview Paper View -->
+      <div class="p-6 overflow-y-auto flex items-start justify-center flex-1 bg-slate-200">
+        
+        <!-- 80mm Thermal Receipt View -->
+        <div id="view-thermal" class="w-[80mm] bg-white p-4 text-slate-900 shadow font-mono text-[11px] leading-tight border border-slate-300">
+          <div class="text-center border-b border-dashed border-black pb-2 mb-2">
+            <h2 class="font-bold text-sm tracking-tight text-slate-900">ROYAL SILK & TEXTILES</h2>
+            <p class="text-[10px]">42, Gandhi Road, Chennai - 600001</p>
+            <p class="text-[10px]">Phone: +91 98401 23456</p>
+            <p class="font-bold text-[10px] mt-0.5">GSTIN: 33AAAAA0000A1Z5</p>
+            <div class="inline-block border border-black px-2 py-0.5 text-[10px] font-bold mt-1 uppercase">TAX INVOICE</div>
+          </div>
+          <div class="text-[10px] border-b border-dashed border-black pb-1.5 mb-2 space-y-0.5">
+            <div class="flex justify-between"><span>Inv: <strong id="th-inv-no"></strong></span><span id="th-date"></span></div>
+            <div>Customer: <span id="th-cust"></span></div>
+            <div>Phone: <span id="th-phone"></span></div>
+          </div>
+          <table class="w-full text-[10px] mb-2">
+            <thead>
+              <tr class="border-b border-dashed border-black text-left">
+                <th class="pb-1">Item / Size</th>
+                <th class="pb-1 text-center">Qty</th>
+                <th class="pb-1 text-right">Rate</th>
+                <th class="pb-1 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody id="th-items-tbody" class="divide-y divide-dashed divide-stone-300"></tbody>
+          </table>
+          <div class="border-t border-dashed border-black pt-1.5 text-[10px] space-y-1">
+            <div class="flex justify-between"><span>Subtotal:</span><span id="th-subtotal" class="font-mono"></span></div>
+            <div class="flex justify-between"><span>CGST + SGST Tax:</span><span id="th-tax" class="font-mono"></span></div>
+            <div class="flex justify-between text-xs font-bold border-t border-black pt-1">
+              <span>Grand Total:</span>
+              <span id="th-grand" class="font-mono"></span>
+            </div>
+            <div class="flex justify-between"><span>Payment Mode:</span><span id="th-mode"></span></div>
+          </div>
+          <div class="text-center border-t border-dashed border-black mt-3 pt-2 text-[9px] text-stone-600">
+            <p>*** Thank You for Shopping! ***</p>
+            <p>Exchange within 7 days with bill & tags.</p>
+          </div>
+        </div>
+
+        <!-- A4 Invoice View -->
+        <div id="view-a4" class="w-[190mm] bg-white p-8 text-slate-900 shadow font-sans text-xs border border-slate-300 hidden">
+          <div class="flex justify-between items-start border-b pb-4">
+            <div>
+              <h2 class="text-xl font-bold text-brand-600">ROYAL SILK & TEXTILES</h2>
+              <p class="text-stone-500">Traditional Silks, Ready-mades & Suiting</p>
+              <p class="text-stone-600">42, Gandhi Road, Chennai - 600001, Tamil Nadu</p>
+              <p class="text-stone-600 font-mono">GSTIN: 33AAAAA0000A1Z5 | Ph: +91 98401 23456</p>
+            </div>
+            <div class="text-right">
+              <span class="inline-block px-3 py-1 bg-stone-100 font-bold text-sm uppercase rounded">TAX INVOICE</span>
+              <p class="mt-1 font-mono">Invoice #: <strong id="a4-inv-no"></strong></p>
+              <p class="font-mono">Date: <span id="a4-date"></span></p>
+            </div>
+          </div>
+          <div class="my-4 p-3 bg-stone-50 rounded border border-stone-200">
+            <p class="font-bold text-stone-700">Bill To (Customer Details):</p>
+            <p id="a4-cust" class="font-semibold text-stone-900"></p>
+            <p id="a4-phone" class="font-mono text-stone-600"></p>
+          </div>
+          <table class="w-full text-left border border-stone-200 my-4">
+            <thead class="bg-stone-100 uppercase text-[10px] font-bold">
+              <tr>
+                <th class="p-2 border">#</th>
+                <th class="p-2 border">Garment Description</th>
+                <th class="p-2 border">HSN</th>
+                <th class="p-2 border text-center">Qty</th>
+                <th class="p-2 border text-right">Price</th>
+                <th class="p-2 border text-right">GST %</th>
+                <th class="p-2 border text-right">Total (₹)</th>
+              </tr>
+            </thead>
+            <tbody id="a4-items-tbody"></tbody>
+          </table>
+          <div class="flex justify-end mt-4">
+            <div class="w-64 space-y-1 text-right">
+              <div class="flex justify-between"><span>Subtotal:</span><span id="a4-sub" class="font-mono"></span></div>
+              <div class="flex justify-between"><span>GST Tax:</span><span id="a4-tax" class="font-mono"></span></div>
+              <div class="flex justify-between font-bold text-sm border-t pt-1">
+                <span>Grand Total:</span>
+                <span id="a4-grand" class="font-mono text-brand-600"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- DEDICATED PRINT DOM CONTAINER (ONLY VISIBLE ON HARDWARE PRINTER) -->
+  <div id="print-area"></div>
+
+  <!-- JAVASCRIPT APP LOGIC -->
   <script>
     const API = '/api';
     let currentTab = 'pos';
     let allProducts = [];
     let posCart = [];
     let selectedPayment = 'CASH';
+    let lastCompletedInvoice = null;
+    let cameraStream = null;
+    let selectedTagProduct = null;
 
-    // TAB MANAGEMENT
+    // TAB SWITCHER
     function switchTab(tabId) {
       document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
-      document.getElementById('module-' + tabId).classList.remove('hidden');
+      const sec = document.getElementById('module-' + tabId);
+      if (sec) sec.classList.remove('hidden');
 
       document.querySelectorAll('aside nav button').forEach(b => {
         b.classList.remove('bg-brand-600', 'text-white', 'shadow');
@@ -681,180 +815,11 @@
     function refreshCurrentTab() {
       if (currentTab === 'pos') loadPosData();
       else if (currentTab === 'products') loadCatalog();
-      else if (currentTab === 'stock') loadStockView();
       else if (currentTab === 'sales') loadSales();
-      else if (currentTab === 'purchases') loadPurchases();
-      else if (currentTab === 'returns') loadReturns();
-      else if (currentTab === 'customers') loadCustomers();
-      else if (currentTab === 'suppliers') loadSuppliers();
-      else if (currentTab === 'expenses') loadExpenses();
-      else if (currentTab === 'discounts') loadDiscounts();
-      else if (currentTab === 'reports') loadReports();
     }
 
     // ==========================================
-    // CLOTHING MODAL FUNCTIONS
-    // ==========================================
-    function openAddProductModal() {
-      document.getElementById('modal-title').innerText = 'Add New Textile / Apparel Product';
-      document.getElementById('form-product-id').value = '0';
-      document.getElementById('form-name').value = '';
-      document.getElementById('form-brand').value = '';
-      document.getElementById('form-color').value = '';
-      document.getElementById('form-cost').value = '600';
-      document.getElementById('form-mrp').value = '1299';
-      document.getElementById('form-stock').value = '12';
-      document.getElementById('form-alert').value = '4';
-      document.getElementById('form-rack').value = 'Rack A-1';
-      document.getElementById('form-hsn').value = '6205';
-      generateRandomBarcode();
-      document.getElementById('product-modal').classList.remove('hidden');
-    }
-
-    function editProductModal(id) {
-      const p = allProducts.find(x => x.productId === id);
-      if (!p) return;
-
-      document.getElementById('modal-title').innerText = 'Edit Textile / Apparel Product';
-      document.getElementById('form-product-id').value = p.productId;
-      document.getElementById('form-barcode').value = p.barcode;
-      document.getElementById('form-sku').value = p.sku;
-      document.getElementById('form-name').value = p.productName;
-      document.getElementById('form-brand').value = p.brand;
-      document.getElementById('form-category').value = p.category;
-      document.getElementById('form-fabric').value = p.fabric;
-      document.getElementById('form-size').value = p.size;
-      document.getElementById('form-color').value = p.color;
-      document.getElementById('form-unit').value = p.unit;
-      document.getElementById('form-hsn').value = p.hsnCode;
-      document.getElementById('form-gst').value = p.gstRate;
-      document.getElementById('form-cost').value = p.costPrice;
-      document.getElementById('form-mrp').value = p.sellingPrice;
-      document.getElementById('form-stock').value = p.stockQuantity;
-      document.getElementById('form-alert').value = p.minStockAlert;
-      document.getElementById('form-rack').value = p.rackLocation;
-
-      document.getElementById('product-modal').classList.remove('hidden');
-    }
-
-    function closeProductModal() {
-      document.getElementById('product-modal').classList.add('hidden');
-    }
-
-    function generateRandomBarcode() {
-      const randomDigits = Math.floor(100000000000 + Math.random() * 900000000000);
-      document.getElementById('form-barcode').value = '890' + randomDigits.toString().slice(0, 9);
-      document.getElementById('form-sku').value = 'SKU-' + Math.floor(1000 + Math.random() * 9000);
-    }
-
-    function setHsn(code) {
-      document.getElementById('form-hsn').value = code;
-    }
-
-    async function handleProductFormSubmit(e) {
-      e.preventDefault();
-      const id = parseInt(document.getElementById('form-product-id').value) || 0;
-
-      const payload = {
-        productId: id,
-        barcode: document.getElementById('form-barcode').value.trim(),
-        sku: document.getElementById('form-sku').value.trim(),
-        productName: document.getElementById('form-name').value.trim(),
-        brand: document.getElementById('form-brand').value.trim(),
-        category: document.getElementById('form-category').value,
-        fabric: document.getElementById('form-fabric').value,
-        size: document.getElementById('form-size').value,
-        color: document.getElementById('form-color').value.trim(),
-        unit: document.getElementById('form-unit').value,
-        hsnCode: document.getElementById('form-hsn').value.trim(),
-        gstRate: parseFloat(document.getElementById('form-gst').value) || 5,
-        costPrice: parseFloat(document.getElementById('form-cost').value) || 0,
-        sellingPrice: parseFloat(document.getElementById('form-mrp').value) || 0,
-        stockQuantity: parseInt(document.getElementById('form-stock').value) || 0,
-        minStockAlert: parseInt(document.getElementById('form-alert').value) || 5,
-        rackLocation: document.getElementById('form-rack').value.trim() || 'Rack A-1',
-        isActive: true
-      };
-
-      try {
-        const method = id > 0 ? 'PUT' : 'POST';
-        const url = id > 0 ? `${API}/products/${id}` : `${API}/products`;
-
-        const res = await fetch(url, {
-          method: method,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (res.ok) {
-          closeProductModal();
-          loadCatalog();
-          loadPosData();
-        } else {
-          const err = await res.json();
-          alert('Error saving product: ' + (err.message || 'Check database connection'));
-        }
-      } catch (err) {
-        alert('Network error connecting to .NET backend: ' + err.message);
-      }
-    }
-
-    // ==========================================
-    // CATALOG TABLE RENDER
-    // ==========================================
-    async function loadCatalog() {
-      try {
-        const res = await fetch(`${API}/products`);
-        if (res.ok) {
-          allProducts = await res.json();
-          const tbody = document.getElementById('catalog-tbody');
-          tbody.innerHTML = allProducts.map(p => `
-            <tr class="hover:bg-stone-50">
-              <td class="p-3">
-                <span class="font-mono font-bold text-stone-900">${p.barcode}</span><br>
-                <span class="font-mono text-stone-400 text-[10px]">${p.sku}</span>
-              </td>
-              <td class="p-3 font-semibold text-stone-800">
-                ${p.productName}<br>
-                <span class="text-stone-400 font-normal text-[11px]">${p.brand}</span>
-              </td>
-              <td class="p-3">
-                <span class="font-medium">${p.category}</span><br>
-                <span class="text-stone-500 text-[11px]">${p.fabric}</span>
-              </td>
-              <td class="p-3">
-                <span class="font-semibold text-stone-700">${p.size}</span> / 
-                <span class="text-stone-500">${p.color}</span>
-              </td>
-              <td class="p-3 text-right font-mono text-stone-600">₹${p.costPrice.toFixed(2)}</td>
-              <td class="p-3 text-right font-mono font-bold text-stone-900">₹${p.sellingPrice.toFixed(2)}</td>
-              <td class="p-3 text-center font-bold">
-                <span class="px-2 py-0.5 rounded text-[11px] ${p.stockQuantity <= p.minStockAlert ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}">
-                  ${p.stockQuantity} ${p.unit.split(' ')[0]}
-                </span>
-              </td>
-              <td class="p-3 font-mono text-stone-500 text-[11px]">${p.rackLocation}</td>
-              <td class="p-3 text-center space-x-2">
-                <button onclick="editProductModal(${p.productId})" class="text-indigo-600 hover:text-indigo-800 font-bold">Edit</button>
-                <button onclick="deleteProduct(${p.productId})" class="text-rose-500 hover:text-rose-700 font-bold">Delete</button>
-              </td>
-            </tr>
-          `).join('');
-        }
-      } catch (err) {
-        console.error('Catalog load error', err);
-      }
-    }
-
-    async function deleteProduct(id) {
-      if (!confirm('Are you sure you want to deactivate this garment SKU?')) return;
-      await fetch(`${API}/products/${id}`, { method: 'DELETE' });
-      loadCatalog();
-      loadPosData();
-    }
-
-    // ==========================================
-    // POS FUNCTIONS
+    // 1. POS LOGIC & BARCODE SCANNER
     // ==========================================
     async function loadPosData() {
       try {
@@ -863,7 +828,9 @@
           allProducts = await res.json();
           renderPosProducts('ALL');
         }
-      } catch (e) { console.error(e); }
+      } catch (err) {
+        console.error('Failed to load products:', err);
+      }
     }
 
     function renderPosProducts(category) {
@@ -874,16 +841,16 @@
         <div onclick="addToPosCart(${p.productId})" class="border border-stone-200 rounded-xl p-2.5 hover:border-brand-500 hover:shadow cursor-pointer transition bg-white flex flex-col justify-between">
           <div>
             <div class="flex justify-between items-start text-[10px]">
-              <span class="font-mono px-1 bg-stone-100 rounded text-stone-600">${p.barcode}</span>
+              <span class="font-mono px-1 bg-stone-100 rounded text-stone-600 font-bold">${p.barcode || p.sku}</span>
               <span class="font-bold px-1 rounded ${p.stockQuantity <= p.minStockAlert ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}">
                 Stock: ${p.stockQuantity}
               </span>
             </div>
             <h3 class="text-xs font-bold text-stone-800 mt-1 line-clamp-1">${p.productName}</h3>
-            <p class="text-[10px] text-stone-500">${p.brand} | ${p.size} | ${p.color}</p>
+            <p class="text-[10px] text-stone-500">${p.brand || 'Apparel'} | Size: ${p.size} | ${p.color}</p>
           </div>
           <div class="mt-2 pt-1.5 border-t border-stone-100 flex items-center justify-between">
-            <span class="text-xs font-extrabold text-stone-900 font-mono">₹${p.sellingPrice.toFixed(2)}</span>
+            <span class="text-xs font-extrabold text-stone-900 font-mono">₹${Number(p.sellingPrice).toFixed(2)}</span>
             <span class="text-[10px] text-stone-400">GST ${p.gstRate}%</span>
           </div>
         </div>
@@ -892,15 +859,25 @@
 
     function handlePosBarcodeScan() {
       const input = document.getElementById('pos-barcode-input');
-      const val = input.value.trim().toLowerCase();
-      if (!val) return;
+      const val = (input.value || '').trim().toLowerCase();
+      if (!val) {
+        alert('Please enter or scan a barcode first.');
+        return;
+      }
 
-      const found = allProducts.find(p => p.barcode.toLowerCase() === val || p.productName.toLowerCase().includes(val));
-      if (found) {
-        addToPosCart(found.productId);
+      const matched = allProducts.find(p => {
+        const barcodeStr = String(p.barcode || '').toLowerCase();
+        const skuStr = String(p.sku || '').toLowerCase();
+        const nameStr = String(p.productName || '').toLowerCase();
+        return barcodeStr === val || skuStr === val || nameStr.includes(val);
+      });
+
+      if (matched) {
+        addToPosCart(matched.productId);
         input.value = '';
+        input.focus();
       } else {
-        alert('Garment barcode not found: ' + val);
+        alert(`No garment found for barcode/SKU: "${input.value}". Check Inventory.`);
       }
     }
 
@@ -908,22 +885,27 @@
       const prod = allProducts.find(p => p.productId === prodId);
       if (!prod) return;
 
-      const item = posCart.find(c => c.productId === prodId);
-      if (item) {
-        if (item.quantity + 1 > prod.stockQuantity) {
-          alert('Stock limit reached for ' + prod.productName);
+      const existing = posCart.find(c => c.productId === prodId);
+      if (existing) {
+        if (existing.quantity + 1 > prod.stockQuantity) {
+          alert(`Cannot exceed available stock of ${prod.stockQuantity} for ${prod.productName}`);
           return;
         }
-        item.quantity++;
+        existing.quantity++;
       } else {
         posCart.push({
           productId: prod.productId,
-          barcode: prod.barcode,
+          barcode: String(prod.barcode || ''),
+          sku: String(prod.sku || ''),
           productName: prod.productName,
-          size: prod.size,
-          color: prod.color,
-          unitPrice: prod.sellingPrice,
-          gstRate: prod.gstRate,
+          brand: prod.brand || 'General',
+          category: prod.category || 'Apparel',
+          size: prod.size || 'Free Size',
+          color: prod.color || 'Standard',
+          hsnCode: prod.hsnCode || '5208',
+          unit: prod.unit || 'Pcs',
+          unitPrice: Number(prod.sellingPrice),
+          gstRate: Number(prod.gstRate || 5),
           discountAmount: 0,
           quantity: 1
         });
@@ -945,11 +927,11 @@
       let totalTax = 0;
 
       tbody.innerHTML = posCart.map(item => {
-        const lineTaxable = (item.quantity * item.unitPrice) - item.discountAmount;
-        const lineTax = lineTaxable * (item.gstRate / 100);
-        const lineTotal = lineTaxable + lineTax;
+        const lineGross = item.quantity * item.unitPrice;
+        const lineTax = (lineGross - item.discountAmount) * (item.gstRate / 100);
+        const lineTotal = lineGross + lineTax;
 
-        subtotal += (item.quantity * item.unitPrice);
+        subtotal += lineGross;
         totalTax += lineTax;
 
         return `
@@ -990,11 +972,18 @@
       });
     }
 
+    // ==========================================
+    // CHECKOUT & INVOICE PRINTING
+    // ==========================================
     async function processPosCheckout() {
       if (posCart.length === 0) {
-        alert('Cart is empty!');
+        alert('Your cart is empty! Please add garments before billing.');
         return;
       }
+
+      const custName = document.getElementById('pos-customer-name').value || 'Walk-in Customer';
+      const custPhone = document.getElementById('pos-customer-phone').value || '9999999999';
+      const isInter = document.getElementById('pos-tax-mode').value === 'INTER';
 
       let subtotal = 0;
       let totalTax = 0;
@@ -1005,13 +994,32 @@
       const grandTotal = Math.round(subtotal + totalTax);
 
       const payload = {
-        customerName: document.getElementById('pos-customer-name').value || 'Walk-in Customer',
-        customerPhone: document.getElementById('pos-customer-phone').value || '9999999999',
-        isInterState: document.getElementById('pos-tax-mode').value === 'INTER',
+        customerName: custName,
+        customerPhone: custPhone,
+        isInterState: isInter,
+        billDiscountAmount: 0,
         amountPaid: grandTotal,
-        items: posCart,
+        items: posCart.map(i => ({
+          productId: i.productId,
+          barcode: i.barcode || '',
+          productName: i.productName,
+          brand: i.brand || 'Apparel',
+          category: i.category || 'Garments',
+          size: i.size || 'M',
+          color: i.color || 'Standard',
+          hsnCode: i.hsnCode || '5208',
+          unit: i.unit || 'Pcs',
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          discountAmount: 0,
+          gstRate: i.gstRate
+        })),
         payments: [{ mode: selectedPayment, amount: grandTotal }]
       };
+
+      const btn = document.getElementById('btn-complete-sale');
+      btn.disabled = true;
+      btn.innerText = 'Processing Sale...';
 
       try {
         const res = await fetch(`${API}/billing/checkout`, {
@@ -1020,34 +1028,502 @@
           body: JSON.stringify(payload)
         });
 
-        if (res.ok) {
-          const data = await res.json();
-          document.getElementById('pr-inv-no').innerText = data.invoiceNumber;
-          document.getElementById('pr-date').innerText = new Date().toLocaleString();
-          document.getElementById('pr-cust').innerText = payload.customerName;
-          document.getElementById('pr-sub').innerText = '₹' + subtotal.toFixed(2);
-          document.getElementById('pr-tax').innerText = '₹' + totalTax.toFixed(2);
-          document.getElementById('pr-grand').innerText = '₹' + grandTotal.toFixed(2);
-          document.getElementById('pr-mode').innerText = selectedPayment;
-          document.getElementById('pr-tbody').innerHTML = posCart.map(i => `
-            <tr>
-              <td>${i.productName} (${i.size})</td>
-              <td class="text-center">${i.quantity}</td>
-              <td class="text-right">₹${(i.quantity * i.unitPrice).toFixed(2)}</td>
-            </tr>
-          `).join('');
-
-          window.print();
-          posCart = [];
-          renderPosCart();
-          loadPosData();
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.message || 'Server returned status ' + res.status);
         }
+
+        const data = await res.json();
+        const invoiceNo = data.invoiceNumber || ('INV-' + Date.now());
+
+        lastCompletedInvoice = {
+          invoiceNumber: invoiceNo,
+          date: new Date().toISOString(),
+          customerName: custName,
+          customerPhone: custPhone,
+          items: [...posCart],
+          subtotal: subtotal,
+          totalTax: totalTax,
+          grandTotal: grandTotal,
+          paymentMode: selectedPayment
+        };
+
+        posCart = [];
+        renderPosCart();
+        loadPosData();
+
+        openInvoicePrintModal(lastCompletedInvoice);
+
       } catch (err) {
         alert('Checkout error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Complete Sale & Print Receipt';
       }
     }
 
-    // Initialize POS
+    // ==========================================
+    // INVOICE PRINT MODAL & ENGINE
+    // ==========================================
+    function openInvoicePrintModal(inv) {
+      if (!inv) return;
+      document.getElementById('modal-inv-subtitle').innerText = `Invoice #${inv.invoiceNumber}`;
+
+      document.getElementById('th-inv-no').innerText = inv.invoiceNumber;
+      document.getElementById('th-date').innerText = new Date(inv.date).toLocaleDateString();
+      document.getElementById('th-cust').innerText = inv.customerName;
+      document.getElementById('th-phone').innerText = inv.customerPhone;
+      document.getElementById('th-subtotal').innerText = '₹' + inv.subtotal.toFixed(2);
+      document.getElementById('th-tax').innerText = '₹' + inv.totalTax.toFixed(2);
+      document.getElementById('th-grand').innerText = '₹' + inv.grandTotal.toFixed(2);
+      document.getElementById('th-mode').innerText = inv.paymentMode;
+      document.getElementById('th-items-tbody').innerHTML = inv.items.map(i => `
+        <tr>
+          <td class="py-1">${i.productName} (${i.size})</td>
+          <td class="py-1 text-center">${i.quantity}</td>
+          <td class="py-1 text-right">₹${i.unitPrice.toFixed(2)}</td>
+          <td class="py-1 text-right">₹${(i.quantity * i.unitPrice).toFixed(2)}</td>
+        </tr>
+      `).join('');
+
+      document.getElementById('a4-inv-no').innerText = inv.invoiceNumber;
+      document.getElementById('a4-date').innerText = new Date(inv.date).toLocaleString();
+      document.getElementById('a4-cust').innerText = inv.customerName;
+      document.getElementById('a4-phone').innerText = 'Phone: ' + inv.customerPhone;
+      document.getElementById('a4-sub').innerText = '₹' + inv.subtotal.toFixed(2);
+      document.getElementById('a4-tax').innerText = '₹' + inv.totalTax.toFixed(2);
+      document.getElementById('a4-grand').innerText = '₹' + inv.grandTotal.toFixed(2);
+      document.getElementById('a4-items-tbody').innerHTML = inv.items.map((i, idx) => `
+        <tr class="border-b">
+          <td class="p-2 border font-mono">${idx + 1}</td>
+          <td class="p-2 border"><strong>${i.productName}</strong><br><span class="text-stone-500">${i.brand} | Size: ${i.size} | Color: ${i.color}</span></td>
+          <td class="p-2 border font-mono">${i.hsnCode || '5208'}</td>
+          <td class="p-2 border text-center font-mono">${i.quantity}</td>
+          <td class="p-2 border text-right font-mono">₹${i.unitPrice.toFixed(2)}</td>
+          <td class="p-2 border text-right font-mono">${i.gstRate}%</td>
+          <td class="p-2 border text-right font-mono font-bold">₹${(i.quantity * i.unitPrice).toFixed(2)}</td>
+        </tr>
+      `).join('');
+
+      document.getElementById('invoice-print-modal').classList.remove('hidden');
+    }
+
+    function closeInvoicePrintModal() {
+      document.getElementById('invoice-print-modal').classList.add('hidden');
+    }
+
+    function setPrintFormat(fmt) {
+      if (fmt === 'thermal') {
+        document.getElementById('view-thermal').classList.remove('hidden');
+        document.getElementById('view-a4').classList.add('hidden');
+        document.getElementById('btn-fmt-thermal').className = 'px-3 py-1.5 rounded-lg bg-brand-500 text-white';
+        document.getElementById('btn-fmt-a4').className = 'px-3 py-1.5 rounded-lg text-slate-400 hover:text-white';
+      } else {
+        document.getElementById('view-thermal').classList.add('hidden');
+        document.getElementById('view-a4').classList.remove('hidden');
+        document.getElementById('btn-fmt-a4').className = 'px-3 py-1.5 rounded-lg bg-brand-500 text-white';
+        document.getElementById('btn-fmt-thermal').className = 'px-3 py-1.5 rounded-lg text-slate-400 hover:text-white';
+      }
+    }
+
+    function triggerNativePrint() {
+      const isThermal = !document.getElementById('view-thermal').classList.contains('hidden');
+      const activeContent = isThermal ? document.getElementById('view-thermal').innerHTML : document.getElementById('view-a4').innerHTML;
+      document.getElementById('print-area').innerHTML = activeContent;
+      window.print();
+    }
+
+    // ==========================================
+    // CAMERA BARCODE SCANNER LOGIC
+    // ==========================================
+    async function openCameraScannerModal() {
+      document.getElementById('camera-scanner-modal').classList.remove('hidden');
+      document.getElementById('manual-scanner-code').focus();
+
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+          });
+          const video = document.getElementById('scanner-video');
+          video.srcObject = cameraStream;
+          video.play();
+        }
+      } catch (err) {
+        document.getElementById('scanner-status').innerText = 'Camera access unavailable. Type barcode below:';
+      }
+    }
+
+    function closeCameraScannerModal() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+      }
+      document.getElementById('camera-scanner-modal').classList.add('hidden');
+    }
+
+    function handleManualScannerSubmit() {
+      const code = document.getElementById('manual-scanner-code').value.trim();
+      if (!code) return;
+
+      const matched = allProducts.find(p => 
+        String(p.barcode || '').toLowerCase() === code.toLowerCase() || 
+        String(p.sku || '').toLowerCase() === code.toLowerCase()
+      );
+
+      if (matched) {
+        addToPosCart(matched.productId);
+        closeCameraScannerModal();
+        document.getElementById('manual-scanner-code').value = '';
+      } else {
+        alert('Barcode / SKU not found: ' + code);
+      }
+    }
+
+    // ==============================================================
+    // 2. CLOTHING CATALOG FUNCTIONS
+    // ==============================================================
+    async function loadCatalog() {
+      try {
+        const res = await fetch(`${API}/products`);
+        if (res.ok) {
+          allProducts = await res.json();
+          filterCatalogTable();
+        }
+      } catch (err) {
+        console.error('Failed to load catalog:', err);
+      }
+    }
+
+    function filterCatalogTable() {
+      const q = (document.getElementById('catalog-search')?.value || '').toLowerCase().trim();
+      const cat = document.getElementById('catalog-filter-cat')?.value || 'ALL';
+      const fab = document.getElementById('catalog-filter-fabric')?.value || 'ALL';
+
+      const filtered = allProducts.filter(p => {
+        const matchesQ = !q ||
+          (p.productName && p.productName.toLowerCase().includes(q)) ||
+          (p.barcode && String(p.barcode).toLowerCase().includes(q)) ||
+          (p.sku && String(p.sku).toLowerCase().includes(q)) ||
+          (p.brand && p.brand.toLowerCase().includes(q)) ||
+          (p.color && p.color.toLowerCase().includes(q)) ||
+          (p.hsnCode && String(p.hsnCode).includes(q));
+
+        const matchesCat = (cat === 'ALL') || (p.category === cat);
+        const matchesFab = (fab === 'ALL') || (p.fabric === fab);
+        return matchesQ && matchesCat && matchesFab;
+      });
+
+      const badge = document.getElementById('catalog-counter-badge');
+      if (badge) badge.innerText = `${filtered.length} items`;
+
+      const tbody = document.getElementById('catalog-tbody');
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-stone-400 font-medium">No garments found matching filters.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(p => `
+        <tr class="hover:bg-stone-50 transition">
+          <td class="p-3 font-mono font-bold text-stone-900">
+            <div>${p.barcode || p.sku}</div>
+            <div class="text-[10px] text-stone-400 font-mono">${p.sku}</div>
+          </td>
+          <td class="p-3 font-semibold text-stone-900">
+            <div>${p.productName}</div>
+            <div class="text-[10px] text-stone-400">Brand: <span class="text-indigo-600 font-semibold">${p.brand}</span></div>
+          </td>
+          <td class="p-3">
+            <div class="font-medium text-stone-800">${p.category}</div>
+            <div class="text-[10px] text-stone-500">${p.fabric}</div>
+          </td>
+          <td class="p-3">
+            <span class="inline-block px-1.5 py-0.5 bg-stone-100 border border-stone-200 rounded font-bold text-stone-800 mr-1">${p.size}</span>
+            <span class="text-stone-600">${p.color}</span>
+          </td>
+          <td class="p-3 text-right font-mono text-stone-600">₹${Number(p.costPrice).toFixed(2)}</td>
+          <td class="p-3 text-right font-mono font-bold text-stone-900">₹${Number(p.sellingPrice).toFixed(2)}</td>
+          <td class="p-3 text-center">
+            <span class="px-2 py-0.5 rounded-full font-bold text-[11px] ${p.stockQuantity <= p.minStockAlert ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'}">
+              ${p.stockQuantity} ${p.unit || 'Pcs'}
+            </span>
+          </td>
+          <td class="p-3 font-mono text-stone-500 text-[11px]">${p.rackLocation || 'Rack A-1'}</td>
+          <td class="p-3 pr-4 text-center">
+            <div class="flex items-center justify-center gap-1">
+              <button onclick="openBarcodeTagsModal(${p.productId})" title="Print Barcode Tag" class="p-1.5 hover:bg-stone-200 text-stone-600 hover:text-indigo-600 rounded-lg transition font-bold">
+                🖨️ Tag
+              </button>
+              <button onclick="editProductModal(${p.productId})" title="Edit Garment" class="p-1.5 hover:bg-stone-200 text-stone-600 hover:text-indigo-600 rounded-lg transition font-bold">
+                ✏️
+              </button>
+              <button onclick="deleteProduct(${p.productId})" title="Delete Garment" class="p-1.5 hover:bg-rose-100 text-stone-400 hover:text-rose-600 rounded-lg transition font-bold">
+                🗑️
+              </button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // Modal Add / Edit Product Functions
+    function openAddProductModal() {
+      document.getElementById('modal-product-title').innerHTML = '<span>👗</span> Add New Textile / Apparel Product';
+      document.getElementById('form-product-id').value = '0';
+      document.getElementById('form-name').value = '';
+      document.getElementById('form-brand').value = '';
+      document.getElementById('form-color').value = 'Navy Blue';
+      document.getElementById('form-cost').value = '600';
+      document.getElementById('form-mrp').value = '1299';
+      document.getElementById('form-stock').value = '10';
+      document.getElementById('form-alert').value = '3';
+      document.getElementById('form-rack').value = 'Rack A-1';
+      document.getElementById('form-hsn').value = '6205';
+      generateRandomBarcode();
+      document.getElementById('product-modal').classList.remove('hidden');
+    }
+
+    function editProductModal(id) {
+      const p = allProducts.find(x => x.productId === id);
+      if (!p) return;
+
+      document.getElementById('modal-product-title').innerHTML = '<span>👗</span> Edit Clothing Item';
+      document.getElementById('form-product-id').value = p.productId;
+      document.getElementById('form-barcode').value = p.barcode || '';
+      document.getElementById('form-sku').value = p.sku || '';
+      document.getElementById('form-name').value = p.productName || '';
+      document.getElementById('form-brand').value = p.brand || '';
+      document.getElementById('form-category').value = p.category || 'Men';
+      document.getElementById('form-fabric').value = p.fabric || '100% Cotton';
+      document.getElementById('form-size').value = p.size || 'M';
+      document.getElementById('form-color').value = p.color || '';
+      document.getElementById('form-unit').value = p.unit || 'Pcs';
+      document.getElementById('form-hsn').value = p.hsnCode || '6205';
+      document.getElementById('form-gst').value = p.gstRate || 5;
+      document.getElementById('form-cost').value = p.costPrice || 0;
+      document.getElementById('form-mrp').value = p.sellingPrice || 0;
+      document.getElementById('form-stock').value = p.stockQuantity || 0;
+      document.getElementById('form-alert').value = p.minStockAlert || 3;
+      document.getElementById('form-rack').value = p.rackLocation || 'Rack A-1';
+
+      document.getElementById('product-modal').classList.remove('hidden');
+    }
+
+    function closeProductModal() {
+      document.getElementById('product-modal').classList.add('hidden');
+    }
+
+    function generateRandomBarcode() {
+      const rnd = Math.floor(100000000 + Math.random() * 900000000);
+      document.getElementById('form-barcode').value = '890' + rnd;
+      document.getElementById('form-sku').value = 'SKU-' + Math.floor(1000 + Math.random() * 9000);
+    }
+
+    function setHsn(code) {
+      document.getElementById('form-hsn').value = code;
+    }
+
+    async function handleProductFormSubmit(e) {
+      e.preventDefault();
+      const id = parseInt(document.getElementById('form-product-id').value) || 0;
+
+      const payload = {
+        productId: id,
+        barcode: document.getElementById('form-barcode').value.trim(),
+        sku: document.getElementById('form-sku').value.trim(),
+        productName: document.getElementById('form-name').value.trim(),
+        brand: document.getElementById('form-brand').value.trim(),
+        category: document.getElementById('form-category').value,
+        fabric: document.getElementById('form-fabric').value,
+        size: document.getElementById('form-size').value,
+        color: document.getElementById('form-color').value.trim(),
+        unit: document.getElementById('form-unit').value,
+        hsnCode: document.getElementById('form-hsn').value.trim(),
+        gstRate: parseFloat(document.getElementById('form-gst').value) || 5,
+        costPrice: parseFloat(document.getElementById('form-cost').value) || 0,
+        sellingPrice: parseFloat(document.getElementById('form-mrp').value) || 0,
+        stockQuantity: parseInt(document.getElementById('form-stock').value) || 0,
+        minStockAlert: parseInt(document.getElementById('form-alert').value) || 3,
+        rackLocation: document.getElementById('form-rack').value.trim() || 'Rack A-1',
+        isActive: true
+      };
+
+      try {
+        const method = id > 0 ? 'PUT' : 'POST';
+        const url = id > 0 ? `${API}/products/${id}` : `${API}/products`;
+
+        const res = await fetch(url, {
+          method: method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          closeProductModal();
+          await loadCatalog();
+        } else {
+          const err = await res.json();
+          alert('Error: ' + (err.message || 'Could not save product.'));
+        }
+      } catch (err) {
+        alert('Network error saving product: ' + err.message);
+      }
+    }
+
+    async function deleteProduct(id) {
+      const p = allProducts.find(x => x.productId === id);
+      if (!confirm(`Are you sure you want to deactivate "${p?.productName}"?`)) return;
+      await fetch(`${API}/products/${id}`, { method: 'DELETE' });
+      await loadCatalog();
+    }
+
+    // Export to CSV
+    function exportCatalogToCsv() {
+      if (allProducts.length === 0) return alert('No products to export!');
+      const headers = ['Barcode', 'SKU', 'Garment Name', 'Brand', 'Category', 'Fabric', 'Size', 'Color', 'HSN', 'Cost Price', 'Selling MRP', 'Stock', 'Location'];
+      const rows = allProducts.map(p => [
+        `"${p.barcode}"`, `"${p.sku}"`, `"${p.productName}"`, `"${p.brand}"`, `"${p.category}"`,
+        `"${p.fabric}"`, `"${p.size}"`, `"${p.color}"`, `"${p.hsnCode}"`, p.costPrice, p.sellingPrice,
+        p.stockQuantity, `"${p.rackLocation}"`
+      ]);
+      const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `Clothing_Catalog_${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+    }
+
+    // ==============================================================
+    // REAL SCANNABLE BARCODE PRICE TAG ENGINE (WITH CODE-128 & SKU)
+    // ==============================================================
+    function openBarcodeTagsModal(prodId) {
+      selectedTagProduct = allProducts.find(p => p.productId === prodId);
+      if (!selectedTagProduct) return;
+
+      document.getElementById('tag-modal-item-name').innerText = `${selectedTagProduct.productName} • SKU: ${selectedTagProduct.sku} • MRP: ₹${selectedTagProduct.sellingPrice}`;
+      renderBarcodeTagsSheet();
+      document.getElementById('barcode-tags-modal').classList.remove('hidden');
+    }
+
+    function closeBarcodeTagsModal() {
+      document.getElementById('barcode-tags-modal').classList.add('hidden');
+    }
+
+    function renderBarcodeTagsSheet() {
+      if (!selectedTagProduct) return;
+      const count = parseInt(document.getElementById('tag-sheet-count').value) || 12;
+      const container = document.getElementById('tag-sheet-preview');
+
+      const barcodeCode = String(selectedTagProduct.barcode || selectedTagProduct.sku || '890100100001');
+      const skuCode = selectedTagProduct.sku || ('SKU-' + selectedTagProduct.productId);
+
+      // Render sticker HTML cards with dedicated SVG barcode containers
+      container.innerHTML = Array.from({ length: count }).map((_, idx) => `
+        <div class="bg-white p-3 border border-stone-300 rounded-lg shadow-sm text-center font-sans text-stone-900 flex flex-col justify-between" style="min-height: 180px;">
+          <!-- Shop Header -->
+          <div class="font-bold text-[10px] tracking-wider uppercase text-brand-800 border-b border-stone-200 pb-0.5">
+            Royal Silk & Textiles
+          </div>
+          
+          <!-- Garment & Brand -->
+          <div class="my-1">
+            <div class="font-bold text-xs leading-tight line-clamp-1">${selectedTagProduct.productName}</div>
+            <div class="text-[10px] text-stone-500">${selectedTagProduct.brand}</div>
+          </div>
+
+          <!-- SKU / Item Code & Color -->
+          <div class="flex justify-between items-center text-[10px] font-mono text-stone-600 bg-stone-50 px-1.5 py-0.5 rounded border border-stone-200 my-0.5">
+            <span>SKU: <strong class="text-stone-900">${skuCode}</strong></span>
+            <span>${selectedTagProduct.color}</span>
+          </div>
+
+          <!-- Size Tag -->
+          <div class="flex justify-between items-center text-[10px] text-stone-700 px-1 my-0.5">
+            <span>Size: <strong class="text-stone-900 px-1 bg-stone-100 rounded border border-stone-300">${selectedTagProduct.size}</strong></span>
+            <span class="text-stone-500 font-mono">HSN: ${selectedTagProduct.hsnCode}</span>
+          </div>
+
+          <!-- REAL OPTICAL SCANNABLE BARCODE (CODE-128) -->
+          <div class="my-1 flex items-center justify-center overflow-hidden">
+            <svg id="tag-barcode-svg-${idx}" class="max-w-full"></svg>
+          </div>
+
+          <!-- Price & Barcode number -->
+          <div class="border-t border-stone-200 pt-1 flex justify-between items-center text-xs">
+            <span class="text-[10px] font-mono font-bold text-stone-600">${barcodeCode}</span>
+            <span class="font-extrabold text-sm text-brand-700">MRP ₹${Number(selectedTagProduct.sellingPrice).toFixed(0)}</span>
+          </div>
+        </div>
+      `).join('');
+
+      // Invoke JsBarcode to render high-contrast, genuine Code-128 lines on all SVGs
+      requestAnimationFrame(() => {
+        for (let idx = 0; idx < count; idx++) {
+          const svgEl = document.getElementById(`tag-barcode-svg-${idx}`);
+          if (svgEl && window.JsBarcode) {
+            try {
+              JsBarcode(svgEl, barcodeCode, {
+                format: "CODE128",
+                width: 1.3,
+                height: 38,
+                displayValue: false, // Digits are printed neatly in our footer
+                margin: 2,
+                background: "transparent",
+                lineColor: "#000000"
+              });
+            } catch (err) {
+              console.warn('JsBarcode render fallback for:', barcodeCode, err);
+            }
+          }
+        }
+      });
+    }
+
+    function printBarcodeSheet() {
+      const content = document.getElementById('tag-sheet-preview').outerHTML;
+      document.getElementById('print-area').innerHTML = `
+        <div style="padding: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; width: 100%;">
+          ${content}
+        </div>
+      `;
+      window.print();
+    }
+
+    // ==========================================
+    // 3. SALES REGISTRATION
+    // ==========================================
+    async function loadSales() {
+      const res = await fetch(`${API}/billing/history`);
+      if (res.ok) {
+        const invoices = await res.json();
+        document.getElementById('sales-tbody').innerHTML = invoices.map(i => `
+          <tr class="hover:bg-stone-50">
+            <td class="p-3 font-mono font-bold text-brand-600">${i.invoiceNumber}</td>
+            <td class="p-3 font-mono">${new Date(i.invoiceDate).toLocaleDateString()}</td>
+            <td class="p-3 font-semibold">${i.customerName}</td>
+            <td class="p-3 text-right font-mono font-bold">₹${Number(i.grandTotal).toFixed(2)}</td>
+            <td class="p-3 text-center">
+              <button onclick='openInvoicePrintModal(${JSON.stringify(i).replace(/'/g, "\\'")})' class="text-brand-600 font-bold hover:underline">
+                Reprint
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'F1') { e.preventDefault(); switchTab('pos'); }
+      else if (e.key === 'F9') { e.preventDefault(); openCameraScannerModal(); }
+      else if (e.altKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        document.getElementById('pos-barcode-input').focus();
+      }
+    });
+
+    // Boot POS
     loadPosData();
   </script>
 </body>
