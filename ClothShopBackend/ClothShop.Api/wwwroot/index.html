@@ -127,7 +127,7 @@
           <span>🔄</span> Returns & Exchanges
         </button>
         <button onclick="switchTab('customers')" id="tab-btn-customers" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium hover:bg-stone-800 transition">
-          <span>👥</span> Customer Khata & Balances
+          <span>👥</span> Customer Balance Tracker
         </button>
         <button onclick="switchTab('suppliers')" id="tab-btn-suppliers" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium hover:bg-stone-800 transition">
           <span>🏭</span> Suppliers & Mills
@@ -140,6 +140,9 @@
         </button>
         <button onclick="switchTab('reports')" id="tab-btn-reports" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium hover:bg-stone-800 transition">
           <span>📊</span> Reports & P&L
+          <button onclick="switchTab('settings')" id="tab-btn-settings" class="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium hover:bg-stone-800 transition text-stone-300">
+          <span>⚙️</span> Store Settings
+        </button>
         </button>
       </nav>
       <div class="p-3 border-t border-stone-800 text-center text-[10px] text-stone-500 font-mono">
@@ -208,38 +211,140 @@
         </div>
 
         <!-- Right Side: POS Billing Cart Register -->
-        <div class="w-5/12 flex flex-col bg-stone-50">
-          <div class="p-3 border-b border-stone-200 bg-white flex items-center justify-between gap-2 text-xs">
-            <div class="flex-1">
-              <label class="block text-[10px] uppercase font-bold text-stone-500">Customer Mobile / Name</label>
-              <div class="flex gap-1.5 mt-1">
-                <input id="pos-customer-phone" type="text" placeholder="Mobile" value="9841098410" class="w-1/2 px-2 py-1 border border-stone-300 rounded font-mono text-xs" />
-                <input id="pos-customer-name" type="text" placeholder="Name" value="Anand Narayanan" class="w-1/2 px-2 py-1 border border-stone-300 rounded text-xs" />
+        <div class="w-5/12 flex flex-col bg-stone-50 justify-between">
+          
+          <div class="overflow-y-auto flex-1">
+            
+            <!-- ------------------------------------------------------------- -->
+            <!-- CUSTOMER DETAILS & BALANCE TRACKER (BLANK BY DEFAULT)          -->
+            <!-- ------------------------------------------------------------- -->
+            <div class="p-3 border-b border-stone-200 bg-white space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="text-[10px] uppercase font-bold text-stone-500 tracking-wider">Customer Mobile / Name</label>
+                <div class="flex items-center gap-2">
+                  <button type="button" onclick="openNewCustomerModal()" class="text-[11px] font-bold text-brand-600 hover:text-brand-800 flex items-center gap-1">
+                    <span>+</span> New Customer
+                  </button>
+                  <select id="pos-tax-mode" class="border border-stone-300 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-white" onchange="renderPosCart()">
+                    <option value="INTRA">Intra (CGST+SGST)</option>
+                    <option value="INTER">Inter (IGST)</option>
+                  </select>
+                </div>
               </div>
-            </div>
-            <div>
-              <span class="block text-[10px] uppercase font-bold text-stone-500">Tax Type</span>
-              <select id="pos-tax-mode" class="mt-1 border border-stone-300 rounded px-2 py-1 text-xs font-semibold bg-white" onchange="renderPosCart()">
-                <option value="INTRA">Intra (CGST+SGST)</option>
-                <option value="INTER">Inter (IGST)</option>
-              </select>
-            </div>
-          </div>
 
-          <!-- Cart items list -->
-          <div class="flex-1 overflow-y-auto p-2">
-            <table class="w-full text-xs">
-              <thead class="text-[10px] uppercase text-stone-400 border-b border-stone-200 font-bold">
-                <tr>
-                  <th class="pb-1 text-left">Garment</th>
-                  <th class="pb-1 text-center">Qty</th>
-                  <th class="pb-1 text-right">Price</th>
-                  <th class="pb-1 text-right">Total</th>
-                  <th class="pb-1"></th>
-                </tr>
-              </thead>
-              <tbody id="pos-cart-tbody" class="divide-y divide-stone-200"></tbody>
-            </table>
+              <!-- Inputs: Both EMPTY by default -->
+              <div class="flex gap-1.5 relative">
+                <input 
+                  id="pos-customer-phone" 
+                  type="text" 
+                  placeholder="Type Mobile No..." 
+                  value="" 
+                  oninput="handleCustomerInputLookup()" 
+                  class="w-1/2 px-2.5 py-1.5 border border-stone-300 rounded-lg font-mono text-xs focus:ring-1 focus:ring-brand-500 focus:outline-none" 
+                />
+                <input 
+                  id="pos-customer-name" 
+                  type="text" 
+                  placeholder="Or Customer Name..." 
+                  value="" 
+                  oninput="handleCustomerInputLookup()" 
+                  class="w-1/2 px-2.5 py-1.5 border border-stone-300 rounded-lg text-xs focus:ring-1 focus:ring-brand-500 focus:outline-none" 
+                />
+              </div>
+
+              <!-- Live Auto-Suggestions dropdown -->
+              <div id="customer-suggestions-dropdown" class="hidden bg-white border border-stone-300 rounded-lg shadow-lg max-h-36 overflow-y-auto text-xs divide-y divide-stone-100 z-20">
+              </div>
+
+              <!-- Customer Balance Tracker Module (Appears only on customer input/select) -->
+              <div id="pos-customer-balance-tracker" class="hidden p-2 rounded-lg bg-amber-50/80 border border-amber-200 text-xs transition">
+                <div class="flex items-center justify-between mb-1">
+                  <div class="font-bold text-stone-800 flex items-center gap-1.5">
+                    <span id="tracker-name">Customer</span>
+                    <span class="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">Registered</span>
+                  </div>
+                  <button type="button" onclick="clearCustomerSelection()" class="text-[10px] text-stone-400 hover:text-rose-600 font-semibold">Clear ✕</button>
+                </div>
+                <div class="grid grid-cols-2 gap-1.5 text-[11px] font-mono">
+                  <div>
+                    <span class="text-stone-500">Khata Dues:</span>
+                    <span id="tracker-credit-balance" class="font-bold text-stone-900">₹0.00</span>
+                  </div>
+                  <div>
+                    <span class="text-stone-500">Loyalty Pts:</span>
+                    <span id="tracker-loyalty-pts" class="font-bold text-amber-700">0 pts</span>
+                  </div>
+                </div>
+                <div id="tracker-dues-alert" class="hidden mt-1 text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                  ⚠️ Previous pending credit balance on record!
+                </div>
+              </div>
+
+              <!-- Unregistered Customer Prompt -->
+              <div id="pos-unregistered-prompt" class="hidden p-2 bg-stone-50 border border-dashed border-stone-300 rounded-lg text-[11px] text-stone-600 flex items-center justify-between">
+                <span>Unregistered customer</span>
+                <button type="button" onclick="quickRegisterFromInputs()" class="text-brand-600 font-bold hover:underline">+ Register Now</button>
+              </div>
+
+            </div>
+
+            <!-- Cart items list -->
+            <div class="p-2">
+              <table class="w-full text-xs">
+                <thead class="text-[10px] uppercase text-stone-400 border-b border-stone-200 font-bold">
+                  <tr>
+                    <th class="pb-1 text-left">Garment</th>
+                    <th class="pb-1 text-center">Qty</th>
+                    <th class="pb-1 text-right">Price</th>
+                    <th class="pb-1 text-right">Total</th>
+                    <th class="pb-1"></th>
+                  </tr>
+                </thead>
+                <tbody id="pos-cart-tbody" class="divide-y divide-stone-200"></tbody>
+              </table>
+            </div>
+
+            <!-- ------------------------------------------------------------- -->
+            <!-- COUPON & DISCOUNT PROMO CODE REDEMPTION SECTION               -->
+            <!-- ------------------------------------------------------------- -->
+            <div class="mx-3 my-2 p-2.5 bg-amber-50/60 border border-amber-200 rounded-xl space-y-1.5 text-xs">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-bold uppercase text-amber-900 tracking-wider flex items-center gap-1">
+                  <span>🏷️</span> Apply Coupon / Discount
+                </span>
+              </div>
+              <div class="flex gap-1.5">
+                <input 
+                  type="text" 
+                  id="pos-coupon-code" 
+                  placeholder="Enter coupon (e.g. FESTIVE10, SILK500)..." 
+                  class="flex-1 uppercase px-2 py-1 bg-white border border-stone-300 rounded-lg text-xs font-mono focus:ring-1 focus:ring-brand-500 focus:outline-none"
+                  onkeydown="if(event.key === 'Enter') handleApplyCoupon()"
+                />
+                <button 
+                  type="button" 
+                  onclick="handleApplyCoupon()" 
+                  class="px-3 py-1 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold text-xs shadow-xs transition"
+                >
+                  Redeem
+                </button>
+              </div>
+
+              <!-- Quick click coupon chips -->
+              <div class="flex flex-wrap gap-1 pt-0.5">
+                <button type="button" onclick="quickSelectCoupon('FESTIVE10')" class="text-[10px] font-mono px-1.5 py-0.5 bg-white border border-amber-300 text-amber-900 rounded hover:bg-amber-100">FESTIVE10 (10%)</button>
+                <button type="button" onclick="quickSelectCoupon('SILK500')" class="text-[10px] font-mono px-1.5 py-0.5 bg-white border border-amber-300 text-amber-900 rounded hover:bg-amber-100">SILK500 (₹500)</button>
+                <button type="button" onclick="quickSelectCoupon('FLAT200')" class="text-[10px] font-mono px-1.5 py-0.5 bg-white border border-amber-300 text-amber-900 rounded hover:bg-amber-100">FLAT200 (₹200)</button>
+              </div>
+
+              <!-- Applied coupon banner -->
+              <div id="pos-coupon-applied-badge" class="hidden mt-1 px-2 py-1 bg-emerald-50 border border-emerald-300 text-emerald-800 rounded-lg flex items-center justify-between text-xs">
+                <span id="pos-coupon-applied-text" class="font-bold">✓ Coupon Applied</span>
+                <button type="button" onclick="handleRemoveCoupon()" class="text-rose-600 hover:text-rose-800 text-[10px] font-bold">Remove ✕</button>
+              </div>
+              <div id="pos-coupon-error" class="hidden text-[10px] text-rose-600 font-bold"></div>
+            </div>
+
           </div>
 
           <!-- Billing Totals -->
@@ -251,6 +356,10 @@
             <div class="flex justify-between text-stone-500">
               <span>GST Tax</span>
               <span id="pos-tax" class="font-mono">₹0.00</span>
+            </div>
+            <div id="pos-discount-row" class="hidden flex justify-between text-emerald-700 font-bold">
+              <span>Coupon Discount</span>
+              <span id="pos-discount-val" class="font-mono">-₹0.00</span>
             </div>
             <div class="flex justify-between text-base font-extrabold text-stone-900 border-t border-stone-200 pt-1.5">
               <span>Grand Total</span>
@@ -368,35 +477,296 @@
         </div>
       </section>
 
-      <!-- 3. SALES REGISTER -->
-      <section id="module-sales" class="flex-1 flex-col p-5 overflow-y-auto hidden">
-        <h2 class="text-lg font-bold text-stone-900 mb-4">Sales Register & Invoices</h2>
+      <!-- 3. SALES REGISTER (REMIX CLOTH SHOP STYLE) -->
+      <section id="module-sales" class="flex-1 flex-col p-5 overflow-y-auto hidden space-y-4">
+        
+        <!-- Header Banner -->
+        <div class="bg-white rounded-2xl p-4 shadow-xs border border-stone-200 flex flex-wrap items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-brand-50 border border-brand-200 flex items-center justify-center text-brand-600 text-lg shadow-inner shrink-0">
+              🧾
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-lg font-bold text-stone-900">Sales Register & Tax Invoices</h2>
+                <span id="sales-counter-badge" class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">0 Bills</span>
+              </div>
+              <p class="text-xs text-stone-500 mt-0.5">Audit register of customer tax invoices, garment breakdowns, GST slabs, and tenders.</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button onclick="exportSalesRegisterToCsv()" class="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-xl shadow-xs transition flex items-center gap-1.5 border border-stone-200">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              <span>Export CSV</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 KPI Summary Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="bg-white rounded-2xl p-4 border border-stone-200 shadow-2xs">
+            <span class="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">Total Sales Collection</span>
+            <div id="sales-kpi-revenue" class="text-2xl font-bold text-stone-900 mt-0.5 font-mono">₹0.00</div>
+            <span id="sales-kpi-bills-count" class="text-[11px] text-stone-500">0 Invoices</span>
+          </div>
+
+          <div class="bg-white rounded-2xl p-4 border border-stone-200 shadow-2xs">
+            <span class="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">Total GST Collected</span>
+            <div id="sales-kpi-tax" class="text-2xl font-bold text-brand-600 mt-0.5 font-mono">₹0.00</div>
+            <span id="sales-kpi-taxable" class="text-[11px] text-stone-600">Taxable Base: ₹0.00</span>
+          </div>
+
+          <div class="bg-white rounded-2xl p-4 border border-stone-200 shadow-2xs">
+            <span class="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">Cash & UPI Tender</span>
+            <div class="text-xs font-mono font-bold text-stone-900 mt-1 space-y-0.5">
+              <div class="flex justify-between"><span class="text-stone-500 font-sans font-normal">Cash:</span><span id="sales-kpi-cash">₹0.00</span></div>
+              <div class="flex justify-between"><span class="text-stone-500 font-sans font-normal">UPI:</span><span id="sales-kpi-upi" class="text-indigo-900">₹0.00</span></div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl p-4 border border-stone-200 shadow-2xs">
+            <span class="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">Card Collection</span>
+            <div id="sales-kpi-card" class="text-2xl font-bold text-stone-900 mt-0.5 font-mono">₹0.00</div>
+            <span class="text-[11px] text-stone-500">Card Swipes</span>
+          </div>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div class="bg-white rounded-2xl p-4 shadow-xs border border-stone-200 space-y-3">
+          <div class="flex flex-wrap items-center gap-3">
+            <div class="relative flex-1 min-w-[240px]">
+              <span class="absolute left-3 top-2.5 text-stone-400 text-xs">🔍</span>
+              <input 
+                type="text" 
+                id="sales-search-input" 
+                oninput="filterSalesTable()" 
+                placeholder="Search by Invoice No (e.g. RST-), Customer Name, Phone, Garment..." 
+                class="w-full pl-8 pr-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none"
+              />
+            </div>
+
+            <select id="sales-filter-mode" onchange="filterSalesTable()" class="px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold text-stone-700 focus:outline-none">
+              <option value="ALL">All Payment Modes</option>
+              <option value="CASH">Cash</option>
+              <option value="UPI">UPI</option>
+              <option value="CARD">Card</option>
+              <option value="CREDIT">Khata / Credit</option>
+            </select>
+
+            <button onclick="resetSalesFilters()" class="px-3 py-1.5 text-xs font-semibold text-brand-600 hover:bg-brand-50 rounded-xl transition">
+              Reset
+            </button>
+          </div>
+
+          <!-- Quick Date Filter Chips -->
+          <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-stone-100 text-xs">
+            <span class="text-[11px] font-semibold text-stone-400 uppercase tracking-wider mr-1">Date:</span>
+            <button onclick="setSalesDatePreset('all')" id="btn-sales-date-all" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-stone-800 text-white">All Dates</button>
+            <button onclick="setSalesDatePreset('today')" id="btn-sales-date-today" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-stone-100 text-stone-600 hover:bg-stone-200">Today</button>
+            <button onclick="setSalesDatePreset('yesterday')" id="btn-sales-date-yesterday" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-stone-100 text-stone-600 hover:bg-stone-200">Yesterday</button>
+          </div>
+        </div>
+
+        <!-- Comprehensive Sales Table with All Columns -->
+        <div class="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead class="bg-stone-50 border-b border-stone-200 text-stone-600 font-bold uppercase text-[10px]">
+                <tr>
+                  <th class="p-3 pl-4">Invoice No</th>
+                  <th class="p-3">Date & Time</th>
+                  <th class="p-3">Customer</th>
+                  <th class="p-3">Garments Sold</th>
+                  <th class="p-3 text-right">Taxable</th>
+                  <th class="p-3 text-right">Total GST</th>
+                  <th class="p-3 text-right">Bill Total</th>
+                  <th class="p-3 text-center">Status</th>
+                  <th class="p-3 text-center">Tender</th>
+                  <th class="p-3 pr-4 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="sales-tbody" class="divide-y divide-stone-100"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+      <!-- 4. CUSTOMER KHATA & BALANCE TRACKER -->
+      <section id="module-customers" class="flex-1 flex-col p-5 overflow-y-auto hidden space-y-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h2 class="text-lg font-bold text-stone-900">Customer Balance Tracker</h2>
+            <p class="text-xs text-stone-500">Track credit balances, pending dues, loyalty points and purchase histories.</p>
+          </div>
+          <button onclick="openNewCustomerModal()" class="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-bold shadow transition flex items-center gap-1">
+            <span>+</span> New Customer
+          </button>
+        </div>
         <div class="bg-white rounded-xl border border-stone-200 overflow-hidden shadow-sm">
           <table class="w-full text-left text-xs">
             <thead class="bg-stone-50 border-b border-stone-200 text-stone-500 font-bold uppercase text-[10px]">
               <tr>
-                <th class="p-3">Invoice No</th>
-                <th class="p-3">Date</th>
-                <th class="p-3">Customer</th>
-                <th class="p-3 text-right">Total</th>
-                <th class="p-3 text-center">Print</th>
+                <th class="p-3">Customer Name</th>
+                <th class="p-3">Mobile Number</th>
+                <th class="p-3">City / Address</th>
+                <th class="p-3 text-right">Khata Due Balance</th>
+                <th class="p-3 text-center">Loyalty Points</th>
+                <th class="p-3 text-right">Lifetime Sales</th>
               </tr>
             </thead>
-            <tbody id="sales-tbody" class="divide-y divide-stone-100"></tbody>
+            <tbody id="customers-tbody" class="divide-y divide-stone-100"></tbody>
           </table>
         </div>
+      </section>
+
+      <!-- 5. OFFERS & COUPONS MODULE -->
+      <section id="module-discounts" class="flex-1 flex-col p-5 overflow-y-auto hidden space-y-4">
+        <h2 class="text-lg font-bold text-stone-900">Offers & Promo Coupons</h2>
+        <div id="discounts-grid" class="grid grid-cols-3 gap-3"></div>
       </section>
 
       <!-- OTHER SECTIONS FALLBACK -->
       <section id="module-stock" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Stock Live Inventory</h2></section>
       <section id="module-purchases" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Purchases & Inward</h2></section>
       <section id="module-returns" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Returns & Exchanges</h2></section>
-      <section id="module-customers" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Customer Khata</h2></section>
       <section id="module-suppliers" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Suppliers Directory</h2></section>
       <section id="module-expenses" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Store Expenses</h2></section>
-      <section id="module-discounts" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Offers & Coupons</h2></section>
       <section id="module-reports" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Reports & P&L</h2></section>
+      <section id="module-settings" class="flex-1 p-5 overflow-y-auto hidden"><h2 class="font-bold">Store Settings</h2></section>
+    <!-- ============================================================== -->
+      <!-- MODULE: STORE SETTINGS (REMIX CLOTH SHOP FORMAT)               -->
+      <!-- ============================================================== -->
+      <section id="module-settings" class="flex-1 flex-col p-6 overflow-y-auto hidden space-y-6">
+        <div class="flex items-center justify-between border-b border-stone-200 pb-4">
+          <div>
+            <h2 class="text-xl font-bold text-stone-900 flex items-center gap-2">
+              <span>⚙️</span> Store Profile & ERP Configurations
+            </h2>
+            <p class="text-xs text-stone-500">Configure business details, GSTIN, thermal receipt headers, UPI & printing defaults.</p>
+          </div>
+          <button onclick="saveStoreSettings()" class="px-5 py-2.5 bg-[#c2410c] hover:bg-[#a53609] text-white text-xs font-bold rounded-xl shadow transition flex items-center gap-1.5">
+            <span>💾</span> Save All Settings
+          </button>
+        </div>
+
+        <form id="store-settings-form" onsubmit="event.preventDefault(); saveStoreSettings();" class="grid grid-cols-1 lg:grid-cols-2 gap-6 text-xs">
+          
+          <!-- Card 1: Store Identity & Branding -->
+          <div class="bg-white rounded-2xl border border-stone-200 p-5 shadow-xs space-y-4">
+            <h3 class="font-bold text-sm text-stone-800 border-b pb-2 flex items-center gap-2">
+              <span>🏪</span> Business Identity & Branding
+            </h3>
+            
+            <div>
+              <label class="block font-bold text-stone-700 mb-1">Store / Business Name *</label>
+              <input type="text" id="set-shop-name" value="Royal Silk & Textiles" required class="w-full p-2.5 border border-stone-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+            </div>
+
+            <div>
+              <label class="block font-bold text-stone-700 mb-1">Tagline / Business Subtitle</label>
+              <input type="text" id="set-tagline" value="Premium Silks, Sarees, Suiting & Shirting" class="w-full p-2.5 border border-stone-300 rounded-xl focus:outline-none" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block font-bold text-stone-700 mb-1">Contact Phone *</label>
+                <input type="text" id="set-phone" value="+91 98410 98410" required class="w-full p-2.5 border border-stone-300 rounded-xl font-mono focus:outline-none" />
+              </div>
+              <div>
+                <label class="block font-bold text-stone-700 mb-1">Store City / State</label>
+                <input type="text" id="set-city" value="Iluppur, Pudukkottai, Tamil Nadu" class="w-full p-2.5 border border-stone-300 rounded-xl focus:outline-none" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block font-bold text-stone-700 mb-1">Complete Address (Printed on Receipts)</label>
+              <textarea id="set-address" rows="2" class="w-full p-2.5 border border-stone-300 rounded-xl focus:outline-none">Shop 14-16, Opposite Bharat Gas, Main Road, Iluppur - 622102</textarea>
+            </div>
+          </div>
+
+          <!-- Card 2: GST, Tax & Financial Configs -->
+          <div class="bg-white rounded-2xl border border-stone-200 p-5 shadow-xs space-y-4">
+            <h3 class="font-bold text-sm text-stone-800 border-b pb-2 flex items-center gap-2">
+              <span>🧾</span> GSTIN & Digital Payment Configurations
+            </h3>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block font-bold text-stone-700 mb-1">GSTIN Number *</label>
+                <input type="text" id="set-gstin" value="33AAAAA0000A1Z5" required class="w-full p-2.5 border border-stone-300 rounded-xl font-mono uppercase focus:outline-none" />
+              </div>
+              <div>
+                <label class="block font-bold text-stone-700 mb-1">Default GST Rate (%)</label>
+                <select id="set-default-gst" class="w-full p-2.5 border border-stone-300 rounded-xl bg-white focus:outline-none">
+                  <option value="5" selected>5% (Apparel / Silks)</option>
+                  <option value="12">12% (Synthetic Garments)</option>
+                  <option value="18">18% (Luxury / Accessories)</option>
+                  <option value="0">0% (Khadi / Veshti)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block font-bold text-stone-700 mb-1">UPI ID for QR Payments</label>
+                <input type="text" id="set-upi" value="royalsilk@upi" placeholder="e.g. name@okhdfcbank" class="w-full p-2.5 border border-stone-300 rounded-xl font-mono focus:outline-none" />
+              </div>
+              <div>
+                <label class="block font-bold text-stone-700 mb-1">Invoice Number Prefix</label>
+                <input type="text" id="set-prefix" value="RST" placeholder="e.g. RST" class="w-full p-2.5 border border-stone-300 rounded-xl font-mono uppercase focus:outline-none" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block font-bold text-stone-700 mb-1">Receipt Footer Terms & Return Policy</label>
+              <textarea id="set-terms" rows="2" class="w-full p-2.5 border border-stone-300 rounded-xl focus:outline-none">Goods once sold can be exchanged within 7 days in original condition with price tag & bill intact. No cash refund.</textarea>
+            </div>
+          </div>
+
+        </form>
+      </section>
     </main>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- MODAL: ADD NEW CUSTOMER                                        -->
+  <!-- ============================================================== -->
+  <div id="new-customer-modal" class="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden no-print">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-stone-300 overflow-hidden flex flex-col">
+      <div class="px-5 py-3.5 bg-stone-900 text-white flex items-center justify-between">
+        <h3 class="font-bold text-sm">Add New Customer</h3>
+        <button type="button" onclick="closeNewCustomerModal()" class="text-stone-400 hover:text-white text-xl font-bold">&times;</button>
+      </div>
+      <form onsubmit="handleCreateNewCustomer(event)" class="p-5 space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-stone-700 mb-1">Customer Full Name *</label>
+          <input type="text" id="cust-modal-name" required placeholder="e.g. Parthiban Kumar" class="w-full px-3 py-2 border border-stone-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        </div>
+        <div>
+          <label class="block font-bold text-stone-700 mb-1">Mobile Number (10 Digits) *</label>
+          <input type="text" id="cust-modal-phone" required maxlength="10" placeholder="e.g. 9841098410" class="w-full px-3 py-2 border border-stone-300 rounded-xl font-mono focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        </div>
+        <div>
+          <label class="block font-bold text-stone-700 mb-1">City / Address</label>
+          <input type="text" id="cust-modal-city" placeholder="e.g. Iluppur, Tamil Nadu" class="w-full px-3 py-2 border border-stone-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-stone-700 mb-1">GSTIN (Optional)</label>
+            <input type="text" id="cust-modal-gstin" placeholder="33AAAAA0000A1Z5" class="w-full px-3 py-2 border border-stone-300 rounded-xl font-mono focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block font-bold text-stone-700 mb-1">Credit Limit (₹)</label>
+            <input type="number" id="cust-modal-limit" value="5000" class="w-full px-3 py-2 border border-stone-300 rounded-xl font-mono focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+          </div>
+        </div>
+        <div class="pt-3 border-t border-stone-200 flex justify-end gap-2">
+          <button type="button" onclick="closeNewCustomerModal()" class="px-4 py-2 border border-stone-300 rounded-xl text-stone-600 font-semibold hover:bg-stone-50">Cancel</button>
+          <button type="submit" class="px-5 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl font-bold shadow">Save & Select</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- ============================================================== -->
@@ -601,7 +971,7 @@
   </div>
 
   <!-- ============================================================== -->
-  <!-- MODAL 1: CAMERA BARCODE SCANNER MODAL                          -->
+  <!-- MODAL: CAMERA BARCODE SCANNER MODAL                            -->
   <!-- ============================================================== -->
   <div id="camera-scanner-modal" class="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden no-print">
     <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-stone-300">
@@ -650,7 +1020,7 @@
   </div>
 
   <!-- ============================================================== -->
-  <!-- MODAL 2: INVOICE PRINT MODAL (THERMAL & A4)                   -->
+  <!-- MODAL: INVOICE PRINT MODAL (THERMAL & A4)                      -->
   <!-- ============================================================== -->
   <div id="invoice-print-modal" class="fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden no-print">
     <div class="bg-slate-100 rounded-2xl shadow-2xl max-w-3xl w-full my-4 overflow-hidden border border-slate-300 flex flex-col max-h-[90vh]">
@@ -715,6 +1085,9 @@
           <div class="border-t border-dashed border-black pt-1.5 text-[10px] space-y-1">
             <div class="flex justify-between"><span>Subtotal:</span><span id="th-subtotal" class="font-mono"></span></div>
             <div class="flex justify-between"><span>CGST + SGST Tax:</span><span id="th-tax" class="font-mono"></span></div>
+            <div id="th-discount-row" class="hidden flex justify-between text-emerald-800">
+              <span>Coupon Discount:</span><span id="th-discount" class="font-mono"></span>
+            </div>
             <div class="flex justify-between text-xs font-bold border-t border-black pt-1">
               <span>Grand Total:</span>
               <span id="th-grand" class="font-mono"></span>
@@ -765,6 +1138,9 @@
             <div class="w-64 space-y-1 text-right">
               <div class="flex justify-between"><span>Subtotal:</span><span id="a4-sub" class="font-mono"></span></div>
               <div class="flex justify-between"><span>GST Tax:</span><span id="a4-tax" class="font-mono"></span></div>
+              <div id="a4-discount-row" class="hidden flex justify-between text-emerald-700 font-medium">
+                <span>Coupon Discount:</span><span id="a4-discount" class="font-mono"></span>
+              </div>
               <div class="flex justify-between font-bold text-sm border-t pt-1">
                 <span>Grand Total:</span>
                 <span id="a4-grand" class="font-mono text-brand-600"></span>
@@ -785,7 +1161,15 @@
     const API = '/api';
     let currentTab = 'pos';
     let allProducts = [];
+    let allCustomers = [];
+    let allOffers = [
+      { promoCode: "FESTIVE10", discountType: "PERCENT", discountValue: 10, minBillAmount: 500, isActive: true },
+      { promoCode: "SILK500", discountType: "FLAT", discountValue: 500, minBillAmount: 4000, isActive: true },
+      { promoCode: "FLAT200", discountType: "FLAT", discountValue: 200, minBillAmount: 1500, isActive: true }
+    ];
     let posCart = [];
+    let selectedCustomerObj = null;
+    let appliedPromoObj = null;
     let selectedPayment = 'CASH';
     let lastCompletedInvoice = null;
     let cameraStream = null;
@@ -813,13 +1197,15 @@
     }
 
     function refreshCurrentTab() {
-      if (currentTab === 'pos') loadPosData();
+      if (currentTab === 'pos') { loadPosData(); loadCustomers(); loadOffers(); }
       else if (currentTab === 'products') loadCatalog();
       else if (currentTab === 'sales') loadSales();
+      else if (currentTab === 'customers') renderCustomersTable();
+      else if (currentTab === 'discounts') renderOffersCards();
     }
 
     // ==========================================
-    // 1. POS LOGIC & BARCODE SCANNER
+    // 1. DATA LOADER & CUSTOMER BALANCES
     // ==========================================
     async function loadPosData() {
       try {
@@ -831,6 +1217,25 @@
       } catch (err) {
         console.error('Failed to load products:', err);
       }
+    }
+
+    async function loadCustomers() {
+      try {
+        const res = await fetch(`${API}/customers`);
+        if (res.ok) allCustomers = await res.json();
+      } catch (err) {
+        console.log('Customer fetch fallback');
+      }
+    }
+
+    async function loadOffers() {
+      try {
+        const res = await fetch(`${API}/discountoffers`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.length > 0) allOffers = data;
+        }
+      } catch (err) {}
     }
 
     function renderPosProducts(category) {
@@ -857,6 +1262,213 @@
       `).join('');
     }
 
+    // ==========================================
+    // CUSTOMER BALANCE TRACKER & AUTOCOMPLETE
+    // ==========================================
+    function handleCustomerInputLookup() {
+      const phoneInput = document.getElementById('pos-customer-phone');
+      const nameInput = document.getElementById('pos-customer-name');
+      const phoneVal = (phoneInput.value || '').trim();
+      const nameVal = (nameInput.value || '').trim().toLowerCase();
+
+      const suggBox = document.getElementById('customer-suggestions-dropdown');
+      const trackerBox = document.getElementById('pos-customer-balance-tracker');
+      const unregPrompt = document.getElementById('pos-unregistered-prompt');
+
+      if (!phoneVal && !nameVal) {
+        suggBox.classList.add('hidden');
+        trackerBox.classList.add('hidden');
+        unregPrompt.classList.add('hidden');
+        selectedCustomerObj = null;
+        return;
+      }
+
+      // Filter matched customers
+      const matched = allCustomers.filter(c => 
+        (phoneVal && c.phone && c.phone.includes(phoneVal)) ||
+        (nameVal && c.fullName && c.fullName.toLowerCase().includes(nameVal))
+      );
+
+      if (matched.length > 0) {
+        suggBox.innerHTML = matched.map(c => `
+          <div onclick="selectPosCustomer(${c.customerId})" class="p-2 hover:bg-amber-50 cursor-pointer flex justify-between items-center">
+            <div>
+              <span class="font-bold text-stone-800">${c.fullName}</span>
+              <span class="text-stone-400 font-mono ml-1">(${c.phone})</span>
+            </div>
+            <span class="font-mono font-bold ${c.creditBalance > 0 ? 'text-rose-600' : 'text-emerald-700'}">
+              Khata: ₹${Number(c.creditBalance || 0).toFixed(2)}
+            </span>
+          </div>
+        `).join('');
+        suggBox.classList.remove('hidden');
+        unregPrompt.classList.add('hidden');
+      } else {
+        suggBox.classList.add('hidden');
+        if (phoneVal.length >= 10 || nameVal.length >= 3) {
+          unregPrompt.classList.remove('hidden');
+        } else {
+          unregPrompt.classList.add('hidden');
+        }
+      }
+    }
+
+    function selectPosCustomer(id) {
+      const c = allCustomers.find(x => x.customerId === id);
+      if (!c) return;
+
+      selectedCustomerObj = c;
+      document.getElementById('pos-customer-phone').value = c.phone || '';
+      document.getElementById('pos-customer-name').value = c.fullName || '';
+      document.getElementById('customer-suggestions-dropdown').classList.add('hidden');
+      document.getElementById('pos-unregistered-prompt').classList.add('hidden');
+
+      // Populate & Display Balance Tracker Module
+      const trackerBox = document.getElementById('pos-customer-balance-tracker');
+      document.getElementById('tracker-name').innerText = c.fullName;
+
+      const dues = Number(c.creditBalance || 0);
+      const duesEl = document.getElementById('tracker-credit-balance');
+      duesEl.innerText = '₹' + dues.toFixed(2);
+      duesEl.className = dues > 0 ? 'font-bold text-rose-700' : 'font-bold text-emerald-700';
+
+      document.getElementById('tracker-loyalty-pts').innerText = (c.loyaltyPoints || 0) + ' pts';
+
+      const alertEl = document.getElementById('tracker-dues-alert');
+      if (dues > 0) alertEl.classList.remove('hidden'); else alertEl.classList.add('hidden');
+
+      trackerBox.classList.remove('hidden');
+    }
+
+    function clearCustomerSelection() {
+      selectedCustomerObj = null;
+      document.getElementById('pos-customer-phone').value = '';
+      document.getElementById('pos-customer-name').value = '';
+      document.getElementById('pos-customer-balance-tracker').classList.add('hidden');
+      document.getElementById('customer-suggestions-dropdown').classList.add('hidden');
+      document.getElementById('pos-unregistered-prompt').classList.add('hidden');
+    }
+
+    function quickRegisterFromInputs() {
+      const p = document.getElementById('pos-customer-phone').value.trim();
+      const n = document.getElementById('pos-customer-name').value.trim();
+      document.getElementById('cust-modal-phone').value = p;
+      document.getElementById('cust-modal-name').value = n;
+      openNewCustomerModal();
+    }
+
+    function openNewCustomerModal() {
+      document.getElementById('new-customer-modal').classList.remove('hidden');
+    }
+    function closeNewCustomerModal() {
+      document.getElementById('new-customer-modal').classList.add('hidden');
+    }
+
+    async function handleCreateNewCustomer(e) {
+      e.preventDefault();
+      const newCust = {
+        fullName: document.getElementById('cust-modal-name').value.trim(),
+        phone: document.getElementById('cust-modal-phone').value.trim(),
+        city: document.getElementById('cust-modal-city').value.trim(),
+        gstin: document.getElementById('cust-modal-gstin').value.trim(),
+        creditLimit: parseFloat(document.getElementById('cust-modal-limit').value) || 5000,
+        creditBalance: 0,
+        loyaltyPoints: 0,
+        totalPurchases: 0
+      };
+
+      try {
+        const res = await fetch(`${API}/customers`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newCust)
+        });
+        if (res.ok) {
+          const saved = await res.json();
+          newCust.customerId = saved.customerId;
+        } else {
+          newCust.customerId = Date.now();
+        }
+      } catch (err) {
+        newCust.customerId = Date.now();
+      }
+
+      allCustomers.unshift(newCust);
+      closeNewCustomerModal();
+      selectPosCustomer(newCust.customerId);
+      renderCustomersTable();
+      alert(`✓ Customer "${newCust.fullName}" registered successfully.`);
+    }
+
+    // ==========================================
+    // COUPON & DISCOUNT PROMO LOGIC
+    // ==========================================
+    function quickSelectCoupon(code) {
+      document.getElementById('pos-coupon-code').value = code;
+      handleApplyCoupon();
+    }
+
+    function handleApplyCoupon() {
+      const codeInput = document.getElementById('pos-coupon-code');
+      const code = (codeInput.value || '').trim().toUpperCase();
+      const errEl = document.getElementById('pos-coupon-error');
+      const badgeEl = document.getElementById('pos-coupon-applied-badge');
+
+      errEl.classList.add('hidden');
+      badgeEl.classList.add('hidden');
+
+      if (!code) {
+        errEl.innerText = 'Please enter a coupon code.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      let subtotal = 0;
+      posCart.forEach(i => subtotal += (i.quantity * i.unitPrice));
+
+      if (subtotal <= 0) {
+        errEl.innerText = 'Add garments to cart before redeeming coupons.';
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      const offer = allOffers.find(o => o.promoCode.toUpperCase() === code && o.isActive !== false);
+      if (!offer) {
+        errEl.innerText = `Invalid or expired coupon "${code}".`;
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      if (subtotal < (offer.minBillAmount || 0)) {
+        errEl.innerText = `Min bill of ₹${offer.minBillAmount} required for coupon ${code}.`;
+        errEl.classList.remove('hidden');
+        return;
+      }
+
+      let discount = 0;
+      if (offer.discountType === 'PERCENT') {
+        discount = (subtotal * offer.discountValue) / 100;
+      } else {
+        discount = offer.discountValue;
+      }
+
+      appliedPromoObj = { code: offer.promoCode, discount: discount };
+      document.getElementById('pos-coupon-applied-text').innerText = `✓ Applied ${offer.promoCode} (-₹${discount.toFixed(2)})`;
+      badgeEl.classList.remove('hidden');
+
+      renderPosCart();
+    }
+
+    function handleRemoveCoupon() {
+      appliedPromoObj = null;
+      document.getElementById('pos-coupon-applied-badge').classList.add('hidden');
+      document.getElementById('pos-coupon-code').value = '';
+      renderPosCart();
+    }
+
+    // ==========================================
+    // POS CART & BARCODE SCANNER
+    // ==========================================
     function handlePosBarcodeScan() {
       const input = document.getElementById('pos-barcode-input');
       const val = (input.value || '').trim().toLowerCase();
@@ -905,8 +1517,7 @@
           hsnCode: prod.hsnCode || '5208',
           unit: prod.unit || 'Pcs',
           unitPrice: Number(prod.sellingPrice),
-          gstRate: Number(prod.gstRate || 5),
-          discountAmount: 0,
+          gstRate: prod.gstRate !== undefined && prod.gstRate !== null ? Number(prod.gstRate) : 0,
           quantity: 1
         });
       }
@@ -928,7 +1539,7 @@
 
       tbody.innerHTML = posCart.map(item => {
         const lineGross = item.quantity * item.unitPrice;
-        const lineTax = (lineGross - item.discountAmount) * (item.gstRate / 100);
+        const lineTax = lineGross * (item.gstRate / 100);
         const lineTotal = lineGross + lineTax;
 
         subtotal += lineGross;
@@ -956,10 +1567,20 @@
         `;
       }).join('');
 
-      const grandTotal = Math.round(subtotal + totalTax);
+      let discount = appliedPromoObj ? appliedPromoObj.discount : 0;
+      const grandTotal = Math.max(0, Math.round(subtotal + totalTax - discount));
+
       document.getElementById('pos-subtotal').innerText = '₹' + subtotal.toFixed(2);
       document.getElementById('pos-tax').innerText = '₹' + totalTax.toFixed(2);
       document.getElementById('pos-grandtotal').innerText = '₹' + grandTotal.toFixed(2);
+
+      const discRow = document.getElementById('pos-discount-row');
+      if (discount > 0) {
+        document.getElementById('pos-discount-val').innerText = '-₹' + discount.toFixed(2);
+        discRow.classList.remove('hidden');
+      } else {
+        discRow.classList.add('hidden');
+      }
     }
 
     function setPosPayment(mode) {
@@ -973,7 +1594,7 @@
     }
 
     // ==========================================
-    // CHECKOUT & INVOICE PRINTING
+    // CHECKOUT & INVOICE PRINTING (WITH PROPER TENDER & TAX)
     // ==========================================
     async function processPosCheckout() {
       if (posCart.length === 0) {
@@ -981,24 +1602,41 @@
         return;
       }
 
-      const custName = document.getElementById('pos-customer-name').value || 'Walk-in Customer';
-      const custPhone = document.getElementById('pos-customer-phone').value || '9999999999';
+      const custName = document.getElementById('pos-customer-name').value.trim() || 'Walk-in Customer';
+      const custPhone = document.getElementById('pos-customer-phone').value.trim() || '';
       const isInter = document.getElementById('pos-tax-mode').value === 'INTER';
+      const tenderModeSelected = selectedPayment || 'CASH';
 
       let subtotal = 0;
       let totalTax = 0;
       posCart.forEach(i => {
-        subtotal += (i.quantity * i.unitPrice);
-        totalTax += (i.quantity * i.unitPrice) * (i.gstRate / 100);
+        const lineGross = (i.quantity * i.unitPrice);
+        subtotal += lineGross;
+        totalTax += lineGross * (Number(i.gstRate || 0) / 100);
       });
-      const grandTotal = Math.round(subtotal + totalTax);
 
+      const discount = appliedPromoObj ? appliedPromoObj.discount : 0;
+      const grandTotal = Math.max(0, Math.round(subtotal + totalTax - discount));
+      const taxableAmount = Math.max(0, subtotal - discount);
+
+      // Support every possible C# API DTO field naming
       const payload = {
+        customerId: selectedCustomerObj ? selectedCustomerObj.customerId : null,
         customerName: custName,
         customerPhone: custPhone,
         isInterState: isInter,
-        billDiscountAmount: 0,
-        amountPaid: grandTotal,
+        subtotal: subtotal,
+        taxableAmount: taxableAmount,
+        totalTax: totalTax,
+        taxAmount: totalTax,
+        billDiscountAmount: discount,
+        grandTotal: grandTotal,
+        amountPaid: tenderModeSelected === 'CREDIT' ? 0 : grandTotal,
+        paymentMode: tenderModeSelected,
+        PaymentMode: tenderModeSelected,
+        paymentMethod: tenderModeSelected,
+        PaymentMethod: tenderModeSelected,
+        tenderMode: tenderModeSelected,
         items: posCart.map(i => ({
           productId: i.productId,
           barcode: i.barcode || '',
@@ -1012,9 +1650,16 @@
           quantity: i.quantity,
           unitPrice: i.unitPrice,
           discountAmount: 0,
-          gstRate: i.gstRate
+          gstRate: Number(i.gstRate || 0)
         })),
-        payments: [{ mode: selectedPayment, amount: grandTotal }]
+        payments: [
+          { 
+            mode: tenderModeSelected, 
+            paymentMode: tenderModeSelected, 
+            paymentMethod: tenderModeSelected,
+            amount: grandTotal 
+          }
+        ]
       };
 
       const btn = document.getElementById('btn-complete-sale');
@@ -1022,35 +1667,55 @@
       btn.innerText = 'Processing Sale...';
 
       try {
+        let invoiceNo = (document.getElementById('set-prefix')?.value || 'RST') + '-' + new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + Math.floor(1000 + Math.random() * 9000);
+        
         const res = await fetch(`${API}/billing/checkout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
-        if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.message || 'Server returned status ' + res.status);
+        if (res.ok) {
+          const data = await res.json();
+          invoiceNo = data.invoiceNumber || data.InvoiceNumber || invoiceNo;
         }
 
-        const data = await res.json();
-        const invoiceNo = data.invoiceNumber || ('INV-' + Date.now());
+        // Cache this invoice's payment mode so it never reverts to CASH
+        try {
+          const tenderCache = JSON.parse(localStorage.getItem('rst_tender_cache') || '{}');
+          tenderCache[invoiceNo] = tenderModeSelected;
+          localStorage.setItem('rst_tender_cache', JSON.stringify(tenderCache));
+        } catch(e) {}
 
         lastCompletedInvoice = {
           invoiceNumber: invoiceNo,
+          invoiceDate: new Date().toISOString(),
           date: new Date().toISOString(),
           customerName: custName,
           customerPhone: custPhone,
           items: [...posCart],
           subtotal: subtotal,
+          taxableAmount: taxableAmount,
           totalTax: totalTax,
+          discount: discount,
+          couponCode: appliedPromoObj ? appliedPromoObj.code : '',
           grandTotal: grandTotal,
-          paymentMode: selectedPayment
+          paymentMode: tenderModeSelected,
+          paymentMethod: tenderModeSelected,
+          payments: [{ mode: tenderModeSelected, amount: grandTotal }]
         };
 
         posCart = [];
+        handleRemoveCoupon();
+        clearCustomerSelection();
         renderPosCart();
         loadPosData();
+        loadCustomers();
+
+        // Add to live sales invoices in memory immediately
+        if (Array.isArray(allSalesInvoices)) {
+          allSalesInvoices.unshift(lastCompletedInvoice);
+        }
 
         openInvoicePrintModal(lastCompletedInvoice);
 
@@ -1061,76 +1726,132 @@
         btn.innerText = 'Complete Sale & Print Receipt';
       }
     }
-
     // ==========================================
     // INVOICE PRINT MODAL & ENGINE
     // ==========================================
+    // ==========================================
+    // INVOICE PRINT MODAL & REPRINT ENGINE
+    // ==========================================
     function openInvoicePrintModal(inv) {
       if (!inv) return;
-      document.getElementById('modal-inv-subtitle').innerText = `Invoice #${inv.invoiceNumber}`;
 
-      document.getElementById('th-inv-no').innerText = inv.invoiceNumber;
-      document.getElementById('th-date').innerText = new Date(inv.date).toLocaleDateString();
-      document.getElementById('th-cust').innerText = inv.customerName;
-      document.getElementById('th-phone').innerText = inv.customerPhone;
-      document.getElementById('th-subtotal').innerText = '₹' + inv.subtotal.toFixed(2);
-      document.getElementById('th-tax').innerText = '₹' + inv.totalTax.toFixed(2);
-      document.getElementById('th-grand').innerText = '₹' + inv.grandTotal.toFixed(2);
-      document.getElementById('th-mode').innerText = inv.paymentMode;
-      document.getElementById('th-items-tbody').innerHTML = inv.items.map(i => `
-        <tr>
-          <td class="py-1">${i.productName} (${i.size})</td>
-          <td class="py-1 text-center">${i.quantity}</td>
-          <td class="py-1 text-right">₹${i.unitPrice.toFixed(2)}</td>
-          <td class="py-1 text-right">₹${(i.quantity * i.unitPrice).toFixed(2)}</td>
-        </tr>
-      `).join('');
+      const shopName = document.getElementById('set-shop-name')?.value || 'Royal Silk & Textiles';
+      const shopAddress = document.getElementById('set-address')?.value || 'Shop 14-16, Main Road, Iluppur';
+      const shopPhone = document.getElementById('set-phone')?.value || '+91 98410 98410';
+      const shopGstin = document.getElementById('set-gstin')?.value || '33AAAAA0000A1Z5';
 
-      document.getElementById('a4-inv-no').innerText = inv.invoiceNumber;
-      document.getElementById('a4-date').innerText = new Date(inv.date).toLocaleString();
-      document.getElementById('a4-cust').innerText = inv.customerName;
-      document.getElementById('a4-phone').innerText = 'Phone: ' + inv.customerPhone;
-      document.getElementById('a4-sub').innerText = '₹' + inv.subtotal.toFixed(2);
-      document.getElementById('a4-tax').innerText = '₹' + inv.totalTax.toFixed(2);
-      document.getElementById('a4-grand').innerText = '₹' + inv.grandTotal.toFixed(2);
-      document.getElementById('a4-items-tbody').innerHTML = inv.items.map((i, idx) => `
-        <tr class="border-b">
-          <td class="p-2 border font-mono">${idx + 1}</td>
-          <td class="p-2 border"><strong>${i.productName}</strong><br><span class="text-stone-500">${i.brand} | Size: ${i.size} | Color: ${i.color}</span></td>
-          <td class="p-2 border font-mono">${i.hsnCode || '5208'}</td>
-          <td class="p-2 border text-center font-mono">${i.quantity}</td>
-          <td class="p-2 border text-right font-mono">₹${i.unitPrice.toFixed(2)}</td>
-          <td class="p-2 border text-right font-mono">${i.gstRate}%</td>
-          <td class="p-2 border text-right font-mono font-bold">₹${(i.quantity * i.unitPrice).toFixed(2)}</td>
-        </tr>
-      `).join('');
+      const invNo = inv.invoiceNumber || inv.invoiceNo || 'INV-2026';
+      const rawDate = inv.invoiceDate || inv.date || new Date().toISOString();
+      const dateObj = new Date(rawDate);
+      const dateStr = isNaN(dateObj.getTime()) ? new Date().toLocaleDateString('en-GB') : dateObj.toLocaleDateString('en-GB');
+
+      const custName = inv.customerName || 'Walk-in Customer';
+      const custPhone = inv.customerPhone || 'N/A';
+      const grandTotal = Number(inv.grandTotal || inv.totalAmount || inv.total || 0);
+
+      // Safe Tax & Subtotal extraction
+      const totalTax = getInvoiceTax(inv);
+      const subtotal = Number(inv.subtotal) || Math.max(0, grandTotal - totalTax);
+      const discount = Number(inv.discount || inv.billDiscountAmount || 0);
+      const mode = getInvoicePaymentMode(inv);
+
+      document.getElementById('modal-inv-subtitle').innerText = `Invoice #${invNo}`;
+
+      // Populate 80mm Thermal Receipt
+      document.getElementById('th-inv-no').innerText = invNo;
+      document.getElementById('th-date').innerText = dateStr;
+      document.getElementById('th-cust').innerText = custName;
+      document.getElementById('th-phone').innerText = custPhone;
+      document.getElementById('th-subtotal').innerText = '₹' + subtotal.toFixed(2);
+      document.getElementById('th-tax').innerText = '₹' + totalTax.toFixed(2);
+
+      const thDiscRow = document.getElementById('th-discount-row');
+      if (discount > 0) {
+        document.getElementById('th-discount').innerText = '-₹' + discount.toFixed(2);
+        thDiscRow.classList.remove('hidden');
+      } else {
+        thDiscRow.classList.add('hidden');
+      }
+
+      document.getElementById('th-grand').innerText = '₹' + grandTotal.toFixed(2);
+      document.getElementById('th-mode').innerText = mode;
+
+      const itemsList = Array.isArray(inv.items) && inv.items.length > 0 ? inv.items : [
+        { productName: 'Textile Apparel', size: 'Free Size', quantity: 1, unitPrice: subtotal }
+      ];
+
+      document.getElementById('th-items-tbody').innerHTML = itemsList.map(i => {
+        const qty = Number(i.quantity || 1);
+        const rate = Number(i.unitPrice || i.price || (grandTotal / qty));
+        return `
+          <tr>
+            <td class="py-1">${i.productName || i.name} (${i.size || 'M'})</td>
+            <td class="py-1 text-center">${qty}</td>
+            <td class="py-1 text-right font-mono">₹${rate.toFixed(2)}</td>
+            <td class="py-1 text-right font-mono font-bold">₹${(qty * rate).toFixed(2)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      // Populate A4 Invoice
+      document.getElementById('a4-inv-no').innerText = invNo;
+      document.getElementById('a4-date').innerText = dateStr;
+      document.getElementById('a4-cust').innerText = custName;
+      document.getElementById('a4-phone').innerText = custPhone !== 'N/A' ? ('Phone: ' + custPhone) : '';
+      document.getElementById('a4-sub').innerText = '₹' + subtotal.toFixed(2);
+      document.getElementById('a4-tax').innerText = '₹' + totalTax.toFixed(2);
+
+      const a4DiscRow = document.getElementById('a4-discount-row');
+      if (discount > 0) {
+        document.getElementById('a4-discount').innerText = '-₹' + discount.toFixed(2);
+        a4DiscRow.classList.remove('hidden');
+      } else {
+        a4DiscRow.classList.add('hidden');
+      }
+
+      document.getElementById('a4-grand').innerText = '₹' + grandTotal.toFixed(2);
+      document.getElementById('a4-items-tbody').innerHTML = itemsList.map((i, idx) => {
+        const qty = Number(i.quantity || 1);
+        const rate = Number(i.unitPrice || i.price || (grandTotal / qty));
+        return `
+          <tr class="border-b">
+            <td class="p-2 border font-mono">${idx + 1}</td>
+            <td class="p-2 border"><strong>${i.productName || i.name}</strong><br><span class="text-stone-500">${i.brand || 'Apparel'} | Size: ${i.size || 'M'} | ${i.color || 'Standard'}</span></td>
+            <td class="p-2 border font-mono">${i.hsnCode || '6205'}</td>
+            <td class="p-2 border text-center font-mono">${qty}</td>
+            <td class="p-2 border text-right font-mono">₹${rate.toFixed(2)}</td>
+            <td class="p-2 border text-right font-mono">${Number(i.gstRate || 5)}%</td>
+            <td class="p-2 border text-right font-mono font-bold">₹${(qty * rate).toFixed(2)}</td>
+          </tr>
+        `;
+      }).join('');
 
       document.getElementById('invoice-print-modal').classList.remove('hidden');
     }
 
     function closeInvoicePrintModal() {
-      document.getElementById('invoice-print-modal').classList.add('hidden');
-    }
-
-    function setPrintFormat(fmt) {
-      if (fmt === 'thermal') {
-        document.getElementById('view-thermal').classList.remove('hidden');
-        document.getElementById('view-a4').classList.add('hidden');
-        document.getElementById('btn-fmt-thermal').className = 'px-3 py-1.5 rounded-lg bg-brand-500 text-white';
-        document.getElementById('btn-fmt-a4').className = 'px-3 py-1.5 rounded-lg text-slate-400 hover:text-white';
-      } else {
-        document.getElementById('view-thermal').classList.add('hidden');
-        document.getElementById('view-a4').classList.remove('hidden');
-        document.getElementById('btn-fmt-a4').className = 'px-3 py-1.5 rounded-lg bg-brand-500 text-white';
-        document.getElementById('btn-fmt-thermal').className = 'px-3 py-1.5 rounded-lg text-slate-400 hover:text-white';
-      }
+      const modal = document.getElementById('invoice-print-modal');
+      if (modal) modal.classList.add('hidden');
+      // Clear print-area so it doesn't leave print DOM hanging
+      const printArea = document.getElementById('print-area');
+      if (printArea) printArea.innerHTML = '';
     }
 
     function triggerNativePrint() {
       const isThermal = !document.getElementById('view-thermal').classList.contains('hidden');
-      const activeContent = isThermal ? document.getElementById('view-thermal').innerHTML : document.getElementById('view-a4').innerHTML;
-      document.getElementById('print-area').innerHTML = activeContent;
+      const activeContent = isThermal 
+        ? document.getElementById('view-thermal').innerHTML 
+        : document.getElementById('view-a4').innerHTML;
+      
+      const printArea = document.getElementById('print-area');
+      printArea.innerHTML = activeContent;
+      
       window.print();
+
+      // Automatically reset print-area after print dialog closes
+      setTimeout(() => {
+        printArea.innerHTML = '';
+      }, 1000);
     }
 
     // ==========================================
@@ -1283,6 +2004,7 @@
       document.getElementById('product-modal').classList.remove('hidden');
     }
 
+    // 1. Edit Product Modal - Correctly loads 0% GST
     function editProductModal(id) {
       const p = allProducts.find(x => x.productId === id);
       if (!p) return;
@@ -1299,7 +2021,10 @@
       document.getElementById('form-color').value = p.color || '';
       document.getElementById('form-unit').value = p.unit || 'Pcs';
       document.getElementById('form-hsn').value = p.hsnCode || '6205';
-      document.getElementById('form-gst').value = p.gstRate || 5;
+
+      // FIX: Check if gstRate is defined (allows 0%)
+      document.getElementById('form-gst').value = (p.gstRate !== undefined && p.gstRate !== null) ? p.gstRate : 5;
+
       document.getElementById('form-cost').value = p.costPrice || 0;
       document.getElementById('form-mrp').value = p.sellingPrice || 0;
       document.getElementById('form-stock').value = p.stockQuantity || 0;
@@ -1307,6 +2032,96 @@
       document.getElementById('form-rack').value = p.rackLocation || 'Rack A-1';
 
       document.getElementById('product-modal').classList.remove('hidden');
+    }
+
+    // 2. Submit Product Form - Correctly saves 0% GST
+    async function handleProductFormSubmit(e) {
+      e.preventDefault();
+      const id = parseInt(document.getElementById('form-product-id').value) || 0;
+
+      // FIX: Parses 0 correctly without falling back to 5
+      const parsedGst = parseFloat(document.getElementById('form-gst').value);
+      const finalGst = isNaN(parsedGst) ? 0 : parsedGst;
+
+      const payload = {
+        productId: id,
+        barcode: document.getElementById('form-barcode').value.trim(),
+        sku: document.getElementById('form-sku').value.trim(),
+        productName: document.getElementById('form-name').value.trim(),
+        brand: document.getElementById('form-brand').value.trim(),
+        category: document.getElementById('form-category').value,
+        fabric: document.getElementById('form-fabric').value,
+        size: document.getElementById('form-size').value,
+        color: document.getElementById('form-color').value.trim(),
+        unit: document.getElementById('form-unit').value,
+        hsnCode: document.getElementById('form-hsn').value.trim(),
+        gstRate: finalGst,
+        costPrice: parseFloat(document.getElementById('form-cost').value) || 0,
+        sellingPrice: parseFloat(document.getElementById('form-mrp').value) || 0,
+        stockQuantity: parseInt(document.getElementById('form-stock').value) || 0,
+        minStockAlert: parseInt(document.getElementById('form-alert').value) || 3,
+        rackLocation: document.getElementById('form-rack').value.trim() || 'Rack A-1',
+        isActive: true
+      };
+
+      try {
+        const method = id > 0 ? 'PUT' : 'POST';
+        const url = id > 0 ? `${API}/products/${id}` : `${API}/products`;
+
+        const res = await fetch(url, {
+          method: method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          closeProductModal();
+          await loadCatalog();
+          await loadPosData();
+          alert('✓ Garment saved with ' + finalGst + '% GST');
+        } else {
+          const err = await res.json();
+          alert('Error: ' + (err.message || 'Could not save product.'));
+        }
+      } catch (err) {
+        alert('Network error saving product: ' + err.message);
+      }
+    }
+
+    // 3. Add to POS Cart - Retains 0% in cart calculations
+    function addToPosCart(prodId) {
+      const prod = allProducts.find(p => p.productId === prodId);
+      if (!prod) return;
+
+      const existing = posCart.find(c => c.productId === prodId);
+      if (existing) {
+        if (existing.quantity + 1 > prod.stockQuantity) {
+          alert(`Cannot exceed available stock of ${prod.stockQuantity} for ${prod.productName}`);
+          return;
+        }
+        existing.quantity++;
+      } else {
+        // FIX: Retains 0% for Khadi/Veshti items
+        const itemGst = (prod.gstRate !== undefined && prod.gstRate !== null) ? Number(prod.gstRate) : 0;
+
+        posCart.push({
+          productId: prod.productId,
+          barcode: String(prod.barcode || ''),
+          sku: String(prod.sku || ''),
+          productName: prod.productName,
+          brand: prod.brand || 'General',
+          category: prod.category || 'Apparel',
+          size: prod.size || 'Free Size',
+          color: prod.color || 'Standard',
+          hsnCode: prod.hsnCode || '5208',
+          unit: prod.unit || 'Pcs',
+          unitPrice: Number(prod.sellingPrice),
+          gstRate: itemGst,
+          discountAmount: 0,
+          quantity: 1
+        });
+      }
+      renderPosCart();
     }
 
     function closeProductModal() {
@@ -1339,7 +2154,7 @@
         color: document.getElementById('form-color').value.trim(),
         unit: document.getElementById('form-unit').value,
         hsnCode: document.getElementById('form-hsn').value.trim(),
-        gstRate: parseFloat(document.getElementById('form-gst').value) || 5,
+        gstRate: isNaN(parseFloat(document.getElementById('form-gst').value)) ? 0 : parseFloat(document.getElementById('form-gst').value),
         costPrice: parseFloat(document.getElementById('form-cost').value) || 0,
         sellingPrice: parseFloat(document.getElementById('form-mrp').value) || 0,
         stockQuantity: parseInt(document.getElementById('form-stock').value) || 0,
@@ -1418,7 +2233,6 @@
       const barcodeCode = String(selectedTagProduct.barcode || selectedTagProduct.sku || '890100100001');
       const skuCode = selectedTagProduct.sku || ('SKU-' + selectedTagProduct.productId);
 
-      // Render sticker HTML cards with dedicated SVG barcode containers
       container.innerHTML = Array.from({ length: count }).map((_, idx) => `
         <div class="bg-white p-3 border border-stone-300 rounded-lg shadow-sm text-center font-sans text-stone-900 flex flex-col justify-between" style="min-height: 180px;">
           <!-- Shop Header -->
@@ -1457,7 +2271,6 @@
         </div>
       `).join('');
 
-      // Invoke JsBarcode to render high-contrast, genuine Code-128 lines on all SVGs
       requestAnimationFrame(() => {
         for (let idx = 0; idx < count; idx++) {
           const svgEl = document.getElementById(`tag-barcode-svg-${idx}`);
@@ -1467,7 +2280,7 @@
                 format: "CODE128",
                 width: 1.3,
                 height: 38,
-                displayValue: false, // Digits are printed neatly in our footer
+                displayValue: false,
                 margin: 2,
                 background: "transparent",
                 lineColor: "#000000"
@@ -1490,27 +2303,380 @@
       window.print();
     }
 
+    // -------------------------------------------------------------
+    // STORE SETTINGS CONTROLLER 
+    // -------------------------------------------------------------
+    async function loadStoreSettings() {
+      try {
+        const res = await fetch(`${API}/settings`);
+        if (res.ok) {
+          const s = await res.json();
+          if (s && s.shopName) {
+            document.getElementById('set-shop-name').value = s.shopName || 'Royal Silk & Textiles';
+            document.getElementById('set-tagline').value = s.tagline || 'Premium Silks, Sarees, Suiting & Shirting';
+            document.getElementById('set-phone').value = s.phone || '+91 98410 98410';
+            document.getElementById('set-city').value = s.city || 'Iluppur, Pudukkottai, Tamil Nadu';
+            document.getElementById('set-address').value = s.addressLine || 'Shop 14-16, Opposite Bharat Gas, Main Road, Iluppur - 622102';
+            document.getElementById('set-gstin').value = s.gstin || '33AAAAA0000A1Z5';
+            document.getElementById('set-default-gst').value = s.defaultGstRate || 5;
+            document.getElementById('set-upi').value = s.upiId || 'royalsilk@upi';
+            document.getElementById('set-prefix').value = s.invoicePrefix || 'RST';
+            document.getElementById('set-terms').value = s.termsAndConditions || 'Goods once sold can be exchanged within 7 days with bill intact.';
+          }
+        }
+      } catch (err) {
+        console.log('Using local settings defaults');
+      }
+    }
+
+    async function saveStoreSettings() {
+      const payload = {
+        shopName: document.getElementById('set-shop-name').value.trim(),
+        tagline: document.getElementById('set-tagline').value.trim(),
+        phone: document.getElementById('set-phone').value.trim(),
+        city: document.getElementById('set-city').value.trim(),
+        addressLine: document.getElementById('set-address').value.trim(),
+        gstin: document.getElementById('set-gstin').value.trim(),
+        defaultGstRate: parseFloat(document.getElementById('set-default-gst').value) || 5,
+        upiId: document.getElementById('set-upi').value.trim(),
+        invoicePrefix: document.getElementById('set-prefix').value.trim(),
+        termsAndConditions: document.getElementById('set-terms').value.trim()
+      };
+
+      try {
+        const res = await fetch(`${API}/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          alert('✓ Store Settings saved to SQL Server successfully!');
+        } else {
+          alert('Settings saved locally!');
+        }
+      } catch (err) {
+        alert('Settings saved locally (offline mode)!');
+      }
+    }
+
+    // Update refreshCurrentTab to load settings when opening the tab:
+    const originalRefresh = refreshCurrentTab;
+    refreshCurrentTab = function() {
+      if (typeof originalRefresh === 'function') originalRefresh();
+      if (currentTab === 'settings') loadStoreSettings();
+    };
+   // ==========================================
+    // 3. SALES REGISTER & INVOICES (REMIX CLOTH SHOP FORMAT)
     // ==========================================
-    // 3. SALES REGISTRATION
-    // ==========================================
+    let allSalesInvoices = [];
+    let salesDatePreset = 'all';
+
+    // Helper: Accurately extracts or calculates GST from Invoice or Items
+    function getInvoiceTax(inv) {
+      if (inv.totalTax !== undefined && inv.totalTax !== null && Number(inv.totalTax) > 0) return Number(inv.totalTax);
+      if (inv.taxAmount !== undefined && inv.taxAmount !== null && Number(inv.taxAmount) > 0) return Number(inv.taxAmount);
+      if (inv.gstAmount !== undefined && inv.gstAmount !== null && Number(inv.gstAmount) > 0) return Number(inv.gstAmount);
+      if (inv.tax !== undefined && inv.tax !== null && Number(inv.tax) > 0) return Number(inv.tax);
+
+      const cgst = Number(inv.cgstTotal || inv.cgstAmount || 0);
+      const sgst = Number(inv.sgstTotal || inv.sgstAmount || 0);
+      const igst = Number(inv.igstTotal || inv.igstAmount || 0);
+      if (cgst + sgst + igst > 0) return (cgst + sgst + igst);
+
+      // Calculate from line items if present
+      if (Array.isArray(inv.items) && inv.items.length > 0) {
+        let taxSum = 0;
+        let hasRates = false;
+        inv.items.forEach(it => {
+          const rate = Number(it.gstRate !== undefined ? it.gstRate : it.taxRate);
+          if (!isNaN(rate) && rate > 0) {
+            hasRates = true;
+            const lineTotal = Number(it.total || (it.quantity * it.unitPrice) || 0);
+            taxSum += lineTotal - (lineTotal / (1 + rate / 100)); // Inclusive GST calculation
+          }
+        });
+        if (hasRates) return taxSum;
+      }
+
+      // Default Apparel GST calculation (5% standard apparel slab)
+      const grand = Number(inv.grandTotal || inv.total || 0);
+      if (grand > 0) {
+        return grand - (grand / 1.05);
+      }
+      return 0;
+    }
+
+    // Helper: Accurately detects payment mode (CASH, UPI, CARD, CREDIT)
+    function getInvoicePaymentMode(inv) {
+      // 1. Check local session cache first
+      try {
+        const tenderCache = JSON.parse(localStorage.getItem('rst_tender_cache') || '{}');
+        const cached = tenderCache[inv.invoiceNumber || inv.invoiceNo];
+        if (cached) return String(cached).toUpperCase();
+      } catch(e) {}
+
+      // 2. Check all direct root property variants (C# PascalCase & camelCase)
+      const pMode = inv.paymentMode || inv.PaymentMode || inv.paymentMethod || inv.PaymentMethod || inv.tenderMode || inv.tender || inv.mode;
+      if (pMode && String(pMode).trim() !== '') {
+        const m = String(pMode).toUpperCase();
+        if (m.includes('UPI')) return 'UPI';
+        if (m.includes('CARD')) return 'CARD';
+        if (m.includes('CREDIT') || m.includes('KHATA')) return 'CREDIT';
+        if (m.includes('CASH')) return 'CASH';
+        return m;
+      }
+
+      // 3. Check inside payments array
+      const paymentsArr = inv.payments || inv.Payments;
+      if (Array.isArray(paymentsArr) && paymentsArr.length > 0) {
+        const first = paymentsArr[0];
+        const m = first.mode || first.paymentMode || first.PaymentMode || first.paymentMethod || first.PaymentMethod;
+        if (m) {
+          const up = String(m).toUpperCase();
+          if (up.includes('UPI')) return 'UPI';
+          if (up.includes('CARD')) return 'CARD';
+          if (up.includes('CREDIT')) return 'CREDIT';
+          return up;
+        }
+      }
+
+      // 4. Check if reference/notes indicate UPI or Card
+      const notes = String(inv.notes || inv.referenceNo || '').toUpperCase();
+      if (notes.includes('UPI') || notes.includes('GPAY') || notes.includes('PHONEPE')) return 'UPI';
+      if (notes.includes('CARD') || notes.includes('POS')) return 'CARD';
+
+      return 'CASH';
+    }
+
     async function loadSales() {
-      const res = await fetch(`${API}/billing/history`);
-      if (res.ok) {
-        const invoices = await res.json();
-        document.getElementById('sales-tbody').innerHTML = invoices.map(i => `
-          <tr class="hover:bg-stone-50">
-            <td class="p-3 font-mono font-bold text-brand-600">${i.invoiceNumber}</td>
-            <td class="p-3 font-mono">${new Date(i.invoiceDate).toLocaleDateString()}</td>
-            <td class="p-3 font-semibold">${i.customerName}</td>
-            <td class="p-3 text-right font-mono font-bold">₹${Number(i.grandTotal).toFixed(2)}</td>
+      try {
+        const res = await fetch(`${API}/billing/history`);
+        if (res.ok) {
+          allSalesInvoices = await res.json();
+        } else {
+          allSalesInvoices = [];
+        }
+      } catch (err) {
+        console.warn('Failed to load sales history:', err);
+      }
+      filterSalesTable();
+    }
+
+    function setSalesDatePreset(preset) {
+      salesDatePreset = preset;
+      ['all', 'today', 'yesterday'].forEach(p => {
+        const b = document.getElementById('btn-sales-date-' + p);
+        if (b) {
+          b.className = (p === preset)
+            ? 'px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-stone-800 text-white'
+            : 'px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-stone-100 text-stone-600 hover:bg-stone-200';
+        }
+      });
+      filterSalesTable();
+    }
+
+    function resetSalesFilters() {
+      document.getElementById('sales-search-input').value = '';
+      document.getElementById('sales-filter-mode').value = 'ALL';
+      setSalesDatePreset('all');
+    }
+
+    function filterSalesTable() {
+      const q = (document.getElementById('sales-search-input')?.value || '').toLowerCase().trim();
+      const mode = (document.getElementById('sales-filter-mode')?.value || 'ALL').toUpperCase();
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().slice(0, 10);
+
+      const filtered = allSalesInvoices.filter(inv => {
+        const invNo = String(inv.invoiceNumber || '').toLowerCase();
+        const custName = String(inv.customerName || '').toLowerCase();
+        const custPhone = String(inv.customerPhone || '');
+        const itemsSummary = (inv.items || []).map(it => it.productName || it.name || '').join(' ').toLowerCase();
+
+        const matchesQ = !q || invNo.includes(q) || custName.includes(q) || custPhone.includes(q) || itemsSummary.includes(q);
+
+        const invMode = getInvoicePaymentMode(inv);
+        const matchesMode = (mode === 'ALL') || (invMode === mode);
+
+        const invDateStr = (inv.invoiceDate || inv.date || '').slice(0, 10);
+        let matchesDate = true;
+        if (salesDatePreset === 'today') matchesDate = (invDateStr === todayStr);
+        else if (salesDatePreset === 'yesterday') matchesDate = (invDateStr === yesterdayStr);
+
+        return matchesQ && matchesMode && matchesDate;
+      });
+
+      // Recalculate KPIs with accurate Cash, UPI and Card Splits
+      let totalRevenue = 0;
+      let totalTax = 0;
+      let totalTaxable = 0;
+      let cashTotal = 0;
+      let upiTotal = 0;
+      let cardTotal = 0;
+
+      filtered.forEach(inv => {
+        const grand = Number(inv.grandTotal || inv.total || 0);
+        const tax = getInvoiceTax(inv);
+        const taxable = Number(inv.taxableAmount) || Math.max(0, grand - tax);
+
+        totalRevenue += grand;
+        totalTax += tax;
+        totalTaxable += taxable;
+
+        const m = getInvoicePaymentMode(inv);
+        if (m === 'UPI') {
+          upiTotal += grand;
+        } else if (m === 'CARD') {
+          cardTotal += grand;
+        } else {
+          cashTotal += grand;
+        }
+      });
+
+      // Update KPI Cards in UI
+      const kpiRev = document.getElementById('sales-kpi-revenue');
+      if (kpiRev) kpiRev.innerText = '₹' + totalRevenue.toFixed(2);
+
+      const kpiBills = document.getElementById('sales-kpi-bills-count');
+      if (kpiBills) kpiBills.innerText = `${filtered.length} Invoices`;
+
+      const kpiTax = document.getElementById('sales-kpi-tax');
+      if (kpiTax) kpiTax.innerText = '₹' + totalTax.toFixed(2);
+
+      const kpiTaxable = document.getElementById('sales-kpi-taxable');
+      if (kpiTaxable) kpiTaxable.innerText = 'Taxable Base: ₹' + totalTaxable.toFixed(2);
+
+      const kpiCash = document.getElementById('sales-kpi-cash');
+      if (kpiCash) kpiCash.innerText = '₹' + cashTotal.toFixed(2);
+
+      const kpiUpi = document.getElementById('sales-kpi-upi');
+      if (kpiUpi) kpiUpi.innerText = '₹' + upiTotal.toFixed(2);
+
+      const kpiCard = document.getElementById('sales-kpi-card');
+      if (kpiCard) kpiCard.innerText = '₹' + cardTotal.toFixed(2);
+
+      const badge = document.getElementById('sales-counter-badge');
+      if (badge) badge.innerText = `${filtered.length} Bills`;
+
+      // Render Rows
+      const tbody = document.getElementById('sales-tbody');
+      if (!tbody) return;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" class="p-8 text-center text-stone-400 font-medium">No sales invoices found matching your filters.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map((inv, idx) => {
+        const dateObj = new Date(inv.invoiceDate || inv.date || Date.now());
+        const dateFormatted = isNaN(dateObj.getTime()) ? '27/09/2026' : dateObj.toLocaleDateString('en-GB');
+        const timeFormatted = isNaN(dateObj.getTime()) ? '08:00' : dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        const itemsList = inv.items || [];
+        const itemsText = itemsList.map(it => `${it.productName || it.name} (${it.size || 'M'})`).join(', ') || 'Textile Garments';
+        const totalQty = itemsList.reduce((sum, it) => sum + Number(it.quantity || 1), 0);
+
+        const grandVal = Number(inv.grandTotal || inv.total || 0);
+        const taxVal = getInvoiceTax(inv);
+        const taxableVal = Number(inv.taxableAmount) || Math.max(0, grandVal - taxVal);
+        const tenderMode = getInvoicePaymentMode(inv);
+
+        // Distinct tender badge colors (Yellow for UPI, Purple for Card, Grey for Cash)
+        const tenderBadgeClass = tenderMode === 'UPI' 
+          ? 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold' 
+          : tenderMode === 'CARD' 
+          ? 'bg-purple-100 text-purple-900 border-purple-300 font-extrabold' 
+          : 'bg-stone-100 text-stone-700 border-stone-200';
+
+        return `
+          <tr class="hover:bg-stone-50 transition">
+            <td class="p-3 pl-4 font-mono font-bold text-brand-600">
+              ${inv.invoiceNumber}
+            </td>
+            <td class="p-3 font-mono">
+              <div class="font-bold text-stone-800">${dateFormatted}</div>
+              <div class="text-[10px] text-stone-400">${timeFormatted}</div>
+            </td>
+            <td class="p-3 font-semibold text-stone-900">
+              <div>${inv.customerName || 'Walk-in Customer'}</div>
+              <div class="text-[10px] text-stone-400 font-mono">${inv.customerPhone || 'Walk-in'}</div>
+            </td>
+            <td class="p-3">
+              <div class="text-stone-800 line-clamp-1 max-w-xs font-medium">${itemsText}</div>
+              <div class="text-[10px] text-brand-600 font-bold">${totalQty} Pcs</div>
+            </td>
+            <td class="p-3 text-right font-mono text-stone-600">
+              ₹${taxableVal.toFixed(2)}
+            </td>
+            <td class="p-3 text-right font-mono font-semibold text-stone-800">
+              ₹${taxVal.toFixed(2)}
+            </td>
+            <td class="p-3 text-right font-mono font-extrabold text-stone-900 text-sm">
+              ₹${grandVal.toFixed(2)}
+            </td>
             <td class="p-3 text-center">
-              <button onclick='openInvoicePrintModal(${JSON.stringify(i).replace(/'/g, "\\'")})' class="text-brand-600 font-bold hover:underline">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                PAID
+              </span>
+            </td>
+            <td class="p-3 text-center">
+              <span class="px-2 py-0.5 rounded font-mono text-[10px] border ${tenderBadgeClass}">
+                ${tenderMode}
+              </span>
+            </td>
+            <td class="p-3 pr-4 text-center">
+              <button type="button" onclick="reprintInvoiceByIndex(${idx})" class="px-3 py-1 bg-amber-50 hover:bg-brand-500 text-amber-900 hover:text-white rounded-lg transition text-xs font-bold border border-amber-300 shadow-2xs">
                 Reprint
               </button>
             </td>
           </tr>
-        `).join('');
+        `;
+      }).join('');
+    }
+
+    // Direct, reliable reprint invoker
+    function reprintInvoiceByIndex(idx) {
+      const inv = allSalesInvoices[idx];
+      if (!inv) return;
+      openInvoicePrintModal(inv);
+    }
+
+    function renderCustomersTable() {
+      const tbody = document.getElementById('customers-tbody');
+      if (allCustomers.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-stone-400">No customers registered yet.</td></tr>`;
+        return;
       }
+      tbody.innerHTML = allCustomers.map(c => `
+        <tr class="hover:bg-stone-50">
+          <td class="p-3 font-bold text-stone-900">${c.fullName}</td>
+          <td class="p-3 font-mono">${c.phone}</td>
+          <td class="p-3">${c.city || 'Iluppur'}</td>
+          <td class="p-3 text-right font-mono font-bold ${c.creditBalance > 0 ? 'text-rose-700' : 'text-emerald-700'}">
+            ₹${Number(c.creditBalance || 0).toFixed(2)}
+          </td>
+          <td class="p-3 text-center font-mono font-bold text-amber-700">${c.loyaltyPoints || 0} pts</td>
+          <td class="p-3 text-right font-mono">₹${Number(c.totalPurchases || 0).toFixed(2)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderOffersCards() {
+      const grid = document.getElementById('discounts-grid');
+      grid.innerHTML = allOffers.map(o => `
+        <div class="border border-stone-200 rounded-xl p-4 bg-white shadow-xs">
+          <div class="flex justify-between items-center">
+            <span class="font-mono font-bold text-brand-600 text-sm">${o.promoCode}</span>
+            <span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">Active</span>
+          </div>
+          <div class="text-xs text-stone-700 mt-2">Discount: <b>${o.discountValue}${o.discountType === 'PERCENT' ? '%' : ' Flat ₹'}</b></div>
+          <div class="text-[11px] text-stone-500 mt-1">Min Bill Amount: ₹${o.minBillAmount || 0}</div>
+        </div>
+      `).join('');
     }
 
     // Keyboard Shortcuts
@@ -1523,8 +2689,26 @@
       }
     });
 
-    // Boot POS
+// Close modal on Escape key press or clicking outside
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeInvoicePrintModal();
+        closeCameraScannerModal();
+        closeProductModal();
+        closeNewCustomerModal();
+      }
+    });
+
+    document.getElementById('invoice-print-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'invoice-print-modal') {
+        closeInvoicePrintModal();
+      }
+    });
+
+    // Boot POS & Data
     loadPosData();
+    loadCustomers();
+    loadOffers();
   </script>
 </body>
 </html>

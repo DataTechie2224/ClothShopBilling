@@ -93,7 +93,7 @@ public class ProductsController : ControllerBase
 }
 
 // -------------------------------------------------------------
-// 2. POS BILLING & CHECKOUT CONTROLLER (/api/billing) [ADDED & FIXED]
+// 2. POS BILLING & CHECKOUT CONTROLLER (/api/billing)
 // -------------------------------------------------------------
 [ApiController]
 [Route("api/[controller]")]
@@ -110,6 +110,7 @@ public class BillingController : ControllerBase
             return BadRequest(new { message = "Cart cannot be empty." });
         }
 
+        using var transaction = await _db.Database.BeginTransactionAsync();
         try
         {
             var countToday = await _db.Invoices.CountAsync() + 1;
@@ -123,6 +124,7 @@ public class BillingController : ControllerBase
 
             var invoiceItems = new List<InvoiceItem>();
 
+            // Calculate items subtotal and tax
             foreach (var itemDto in dto.Items)
             {
                 var lineGross = itemDto.Quantity * itemDto.UnitPrice;
@@ -168,7 +170,7 @@ public class BillingController : ControllerBase
                     LineTotal = lineTaxable + gstAmount
                 });
 
-                // Reduce inventory stock in SQL Server
+                // Deduct garment inventory stock
                 var product = await _db.Products.FindAsync(itemDto.ProductId);
                 if (product != null)
                 {
@@ -177,37 +179,69 @@ public class BillingController : ControllerBase
                 }
             }
 
-            var grandTotal = Math.Round(subTotal + totalTax);
+            // -------------------------------------------------------------
+            // COUPON VALIDATION & REDEMPTION ENGINE
+            // -------------------------------------------------------------
+            decimal redeemedCouponDiscount = dto.BillDiscountAmount;
+            if (!string.IsNullOrWhiteSpace(dto.BillDiscountCode))
+            {
+                var coupon = await _db.DiscountOffers
+                    .FirstOrDefaultAsync(o => o.OfferCode.ToUpper() == dto.BillDiscountCode.Trim().ToUpper() && o.IsActive);
+
+                if (coupon != null && subTotal >= coupon.MinBillAmount)
+                {
+                    // Calculate discount based on Percentage or Flat amount
+                    if (coupon.DiscountType != null && coupon.DiscountType.ToUpper().Contains("PERCENT"))
+                    {
+                        redeemedCouponDiscount = Math.Round((subTotal * coupon.DiscountValue) / 100m, 2);
+                    }
+                    else
+                    {
+                        redeemedCouponDiscount = Math.Min(subTotal, coupon.DiscountValue);
+                    }
+
+                    coupon.UsageCount += 1;
+                }
+            }
+
+            // Calculate final bill amounts after coupon discount
+            var finalTaxable = Math.Max(0, subTotal - redeemedCouponDiscount);
+            var grandTotal = Math.Round(finalTaxable + totalTax);
+            var paidAmount = dto.AmountPaid > 0 ? dto.AmountPaid : grandTotal;
+            var balanceDue = Math.Max(0, grandTotal - paidAmount);
 
             var invoice = new Invoice
             {
                 InvoiceNumber = invoiceNo,
                 InvoiceDate = DateTime.UtcNow,
+                CustomerId = dto.CustomerId,
                 CustomerName = string.IsNullOrWhiteSpace(dto.CustomerName) ? "Walk-in Customer" : dto.CustomerName,
-                CustomerPhone = string.IsNullOrWhiteSpace(dto.CustomerPhone) ? "9841098410" : dto.CustomerPhone,
+                CustomerPhone = string.IsNullOrWhiteSpace(dto.CustomerPhone) ? "" : dto.CustomerPhone,
                 CustomerAddress = dto.CustomerAddress,
                 CustomerGstin = dto.CustomerGstin,
                 IsInterState = dto.IsInterState,
                 SubTotal = subTotal,
                 ItemDiscountTotal = 0,
-                BillDiscountAmount = dto.BillDiscountAmount,
+                BillDiscountAmount = redeemedCouponDiscount,
                 BillDiscountCode = dto.BillDiscountCode,
-                TaxableAmount = subTotal,
+                TaxableAmount = finalTaxable,
                 CgstTotal = cgstTotal,
                 SgstTotal = sgstTotal,
                 IgstTotal = igstTotal,
                 TotalTax = totalTax,
-                RoundOff = grandTotal - (subTotal + totalTax),
+                RoundOff = grandTotal - (finalTaxable + totalTax),
                 GrandTotal = grandTotal,
-                AmountPaid = dto.AmountPaid > 0 ? dto.AmountPaid : grandTotal,
-                BalanceDue = Math.Max(0, grandTotal - (dto.AmountPaid > 0 ? dto.AmountPaid : grandTotal)),
-                PaymentStatus = "PAID",
+                AmountPaid = paidAmount,
+                BalanceDue = balanceDue,
+                PaymentStatus = balanceDue > 0 ? "PARTIAL" : "PAID",
                 CashierId = dto.CashierId > 0 ? dto.CashierId : 1,
                 CashierName = dto.CashierName ?? "Admin",
                 Notes = dto.Notes,
-                Items = invoiceItems
+                Items = invoiceItems,
+                Payments = new List<InvoicePayment>()
             };
 
+            // Process Payment Modes
             if (dto.Payments != null && dto.Payments.Count > 0)
             {
                 foreach (var pay in dto.Payments)
@@ -226,23 +260,53 @@ public class BillingController : ControllerBase
                 invoice.Payments.Add(new InvoicePayment
                 {
                     PaymentMode = "CASH",
-                    Amount = grandTotal,
+                    Amount = paidAmount,
                     PaymentDate = DateTime.UtcNow
                 });
             }
 
+            // -------------------------------------------------------------
+            // CUSTOMER BALANCE TRACKER & LOYALTY POINTS UPDATE
+            // -------------------------------------------------------------
+            Customer? customerRecord = null;
+            if (dto.CustomerId.HasValue && dto.CustomerId.Value > 0)
+            {
+                customerRecord = await _db.Customers.FindAsync(dto.CustomerId.Value);
+            }
+            else if (!string.IsNullOrWhiteSpace(dto.CustomerPhone))
+            {
+                customerRecord = await _db.Customers.FirstOrDefaultAsync(c => c.Phone == dto.CustomerPhone.Trim());
+            }
+
+            if (customerRecord != null)
+            {
+                // Update Customer Balance Tracker Khata balance if bill has unpaid credit
+                if (balanceDue > 0)
+                {
+                    customerRecord.CreditBalance += balanceDue;
+                }
+
+                // Award 1 loyalty point per ₹100 spent
+                customerRecord.LoyaltyPoints += (int)(grandTotal / 100m);
+                invoice.CustomerId = customerRecord.CustomerId;
+            }
+
             _db.Invoices.Add(invoice);
             await _db.SaveChangesAsync();
+            await transaction.CommitAsync();
 
-            // Return clean JSON without circular references
             return Ok(new
             {
                 success = true,
                 invoiceId = invoice.InvoiceId,
                 invoiceNumber = invoice.InvoiceNumber,
-                grandTotal = invoice.GrandTotal,
                 subTotal = invoice.SubTotal,
+                couponDiscount = invoice.BillDiscountAmount,
+                couponCode = invoice.BillDiscountCode,
                 totalTax = invoice.TotalTax,
+                grandTotal = invoice.GrandTotal,
+                amountPaid = invoice.AmountPaid,
+                balanceDue = invoice.BalanceDue,
                 customerName = invoice.CustomerName,
                 customerPhone = invoice.CustomerPhone,
                 invoiceDate = invoice.InvoiceDate.ToString("yyyy-MM-ddTHH:mm:ss")
@@ -250,6 +314,7 @@ public class BillingController : ControllerBase
         }
         catch (Exception ex)
         {
+            await transaction.RollbackAsync();
             return StatusCode(500, new { success = false, message = ex.Message });
         }
     }
@@ -394,7 +459,7 @@ public class ReturnsController : ControllerBase
 }
 
 // -------------------------------------------------------------
-// 6. CUSTOMER KHATA & LOYALTY CONTROLLER (/api/customers)
+// 6. CUSTOMER BALANCE TRACKER & REGISTRY (/api/customers)
 // -------------------------------------------------------------
 [ApiController]
 [Route("api/[controller]")]
@@ -407,12 +472,86 @@ public class CustomersController : ControllerBase
     public async Task<IActionResult> GetAll() =>
         Ok(await _db.Customers.OrderBy(c => c.FullName).ToListAsync());
 
+    // Instant Lookup for POS Billing by Mobile Number or Name
+    [HttpGet("search")]
+    public async Task<IActionResult> Search([FromQuery] string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return Ok(new object[] { });
+
+        var cleanQuery = query.Trim().ToLower();
+        var results = await _db.Customers
+            .Where(c => c.Phone.Contains(cleanQuery) || c.FullName.ToLower().Contains(cleanQuery))
+            .Take(10)
+            .Select(c => new
+            {
+                c.CustomerId,
+                c.FullName,
+                c.Phone,
+                c.CustomerGSTIN,
+                c.AddressLine,
+                c.CreditBalance,
+                c.LoyaltyPoints
+            })
+            .ToListAsync();
+
+        return Ok(results);
+    }
+
+    // Customer Balance Tracker & Recent Invoice Dues
+    [HttpGet("{id}/balance")]
+    public async Task<IActionResult> GetCustomerBalanceTracker(int id)
+    {
+        var cust = await _db.Customers.FindAsync(id);
+        if (cust == null) return NotFound(new { message = "Customer not found." });
+
+        var recentBills = await _db.Invoices
+            .Where(i => i.CustomerId == id)
+            .OrderByDescending(i => i.InvoiceDate)
+            .Take(5)
+            .Select(i => new
+            {
+                i.InvoiceNumber,
+                i.InvoiceDate,
+                i.GrandTotal,
+                i.AmountPaid,
+                i.BalanceDue,
+                i.PaymentStatus
+            })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            customer = cust,
+            creditBalance = cust.CreditBalance,
+            loyaltyPoints = cust.LoyaltyPoints,
+            recentBills
+        });
+    }
+
+    // Add New Customer & Store into SQL Database
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] Customer cust)
     {
+        if (string.IsNullOrWhiteSpace(cust.FullName) || string.IsNullOrWhiteSpace(cust.Phone))
+        {
+            return BadRequest(new { message = "Customer Full Name and Mobile Number are required." });
+        }
+
+        var existing = await _db.Customers.FirstOrDefaultAsync(c => c.Phone == cust.Phone.Trim());
+        if (existing != null)
+        {
+            // Already registered, return existing record
+            return Ok(existing);
+        }
+
+        cust.Phone = cust.Phone.Trim();
+        cust.FullName = cust.FullName.Trim();
+        cust.CreatedAt = DateTime.UtcNow;
+
         _db.Customers.Add(cust);
         await _db.SaveChangesAsync();
-        return Ok(cust);
+        return CreatedAtAction(nameof(GetAll), new { id = cust.CustomerId }, cust);
     }
 
     [HttpPost("{id}/payment")]
@@ -508,11 +647,39 @@ public class DiscountsController : ControllerBase
         return Ok(offer);
     }
 
+    // Coupon Validation & Instant Discount Preview Endpoint
     [HttpGet("validate/{code}")]
-    public async Task<IActionResult> Validate(string code)
+    public async Task<IActionResult> Validate(string code, [FromQuery] decimal billAmount = 0)
     {
-        var offer = await _db.DiscountOffers.FirstOrDefaultAsync(o => o.OfferCode == code && o.IsActive);
-        return offer == null ? NotFound(new { message = "Invalid coupon code" }) : Ok(offer);
+        if (string.IsNullOrWhiteSpace(code))
+            return BadRequest(new { message = "Coupon code is required" });
+
+        var offer = await _db.DiscountOffers.FirstOrDefaultAsync(o => o.OfferCode.ToUpper() == code.Trim().ToUpper() && o.IsActive);
+        if (offer == null)
+            return NotFound(new { message = "Invalid or expired coupon code." });
+
+        if (billAmount > 0 && billAmount < offer.MinBillAmount)
+        {
+            return BadRequest(new
+            {
+                message = $"Minimum bill amount for {offer.OfferCode} is ₹{offer.MinBillAmount}",
+                minBillAmount = offer.MinBillAmount
+            });
+        }
+
+        decimal discount = offer.DiscountType != null && offer.DiscountType.ToUpper().Contains("PERCENT")
+            ? (billAmount * offer.DiscountValue) / 100m
+            : offer.DiscountValue;
+
+        return Ok(new
+        {
+            valid = true,
+            code = offer.OfferCode,
+            type = offer.DiscountType,
+            value = offer.DiscountValue,
+            minBillAmount = offer.MinBillAmount,
+            calculatedDiscount = discount
+        });
     }
 }
 
